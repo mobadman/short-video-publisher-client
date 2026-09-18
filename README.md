@@ -1,4 +1,5 @@
-这个项目的前身为：https://github.com/mobadman/douyin-publisher-client，更新到4.1.4。之后版本在当前新链接里更新。
+这个项目的前身为：https://github.com/mobadman/douyin-publisher-client
+更新到4.1.4。之后版本在当前新链接里更新。
 
 # 短视频批量发布助手 4.1.5
 
