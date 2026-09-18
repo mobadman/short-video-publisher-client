@@ -1,5 +1,6 @@
 这个项目的前身为：https://github.com/mobadman/douyin-publisher-client
 更新到4.1.4。之后版本在当前新链接里更新。
+该软件目前主要还是适应我自己团队的工作流，如对使用有疑问或需要定制功能请联系VX:SquiD_D，备注发布助手
 
 # 短视频批量发布助手 4.1.5
 
