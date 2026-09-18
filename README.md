@@ -1,3 +1,5 @@
+这个项目的前身为：https://github.com/mobadman/douyin-publisher-client，更新到4.1.4。之后版本在当前新链接里更新。
+
 # 短视频批量发布助手 4.1.5
 
 Windows 本地批量发布客户端，作者 **SquiD**。软件通过应用专用 Chrome Profile 读取飞书表格并登录发布平台，结合本地封面、文案、Tag 与商品配置生成发布计划，人工复核后执行定时发布。
