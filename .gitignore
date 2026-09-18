@@ -1,0 +1,12 @@
+node_modules/
+.playwright-browsers/
+dist/
+dist-*/
+.build-app-*/
+.build-stage-*/
+.ui-preview-*/
+.ui-*/
+work-forensics-*/
+tests/native-dialog-harness-bin/
+release/
+*.log

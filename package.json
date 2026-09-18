@@ -1,0 +1,36 @@
+{
+  "name": "short-video-publisher-client-runtime",
+  "version": "4.1.5",
+  "private": true,
+  "author": "博观团队",
+  "description": "多平台短视频批量发布助手本地客户端",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test",
+    "test:ui": "node scripts/ui-browser-smoke.js",
+    "test:ui-electron": "node scripts/ui-smoke.js",
+    "test:native-dialog": "node scripts/native-dialog-self-check.js",
+    "test:feishu-browser": "node scripts/feishu-browser-smoke.js",
+    "security:scan": "node scripts/security-scan.js",
+    "predist": "npm run security:scan && node scripts/verify-native.js",
+    "dist": "electron-builder --win nsis",
+    "postdist": "node scripts/verify-built-package.js"
+  },
+  "dependencies": { "playwright": "1.62.1", "playwright-core": "1.62.1" },
+  "devDependencies": { "electron": "37.10.3", "electron-builder": "26.15.3" },
+  "build": {
+    "appId": "cn.boguan.shortvideo.publisher",
+    "productName": "短视频批量发布助手",
+    "electronVersion": "37.10.3",
+    "directories": { "output": "dist-4.1.5" },
+    "files": ["src/**/*", "package.json", "node_modules/playwright/**/*", "node_modules/playwright-core/**/*"],
+    "extraResources": [
+      { "from": "native/FileDialogHelper.exe", "to": "native/FileDialogHelper.exe" },
+      { "from": ".playwright-browsers/chromium-1208", "to": "browsers/chromium-1208" }
+    ],
+    "npmRebuild": false,
+    "win": { "target": "nsis", "icon": "build/app-icon.ico" },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true, "shortcutName": "短视频批量发布助手" }
+  }
+}
