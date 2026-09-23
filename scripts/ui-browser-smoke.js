@@ -9,7 +9,7 @@ const { WechatChannelsBrowserManager } = require('../src/wechat-channels-browser
 (async () => {
   const root = path.join(__dirname, '..');
   const executablePath = path.join(root, '.playwright-browsers', 'chromium-1208', 'chrome-win64', 'chrome.exe');
-  const output = path.join(root, '.ui-4.2.1');
+  const output = path.join(root, '.ui-4.3.0');
   fs.mkdirSync(output, { recursive: true });
   const browser = await chromium.launch({ executablePath, headless: true });
   const page = await browser.newPage({ viewport: { width: 1080, height: 720 } });
@@ -28,6 +28,8 @@ const { WechatChannelsBrowserManager } = require('../src/wechat-channels-browser
       getFeishuBrowserStatus: async () => ({ open: false, loggedIn: false }), getLibraryPaths: async () => ({}),
       getCurrentPlan: async () => null, getDurationEstimates: async () => ({ pull: '预计约6–13分钟（按8–20条）' }),
       listLibrarySchemes: async () => ({ items: [{ id: 'default', name: '常规方案', enabled: true, builtIn: true }], effective: { id: 'default', name: '常规方案' } }),
+      listSchedulePolicies: async () => ({ activeId: 'default', items: [{ id: 'default', name: '默认排期', mode: 'default', builtIn: true }] }),
+      selectSchedulePolicy: async () => ({ activeId: 'default', items: [{ id: 'default', name: '默认排期', mode: 'default', builtIn: true }] }),
       listLibraryProducts: async (workspaceId) => ({ workspace: workspaces.find((item) => item.id === workspaceId), items: [
         { model: 'G23微蒸烤', copyCount: 5, tagGroupCount: 3, coverCount: workspaceId === 'douyin-commerce' ? 0 : 4, shortTitleCount: 2 },
         { model: '秋日通勤风衣', copyCount: 2, tagGroupCount: 1, coverCount: 3, shortTitleCount: 0 }
@@ -45,6 +47,24 @@ const { WechatChannelsBrowserManager } = require('../src/wechat-channels-browser
   assert.equal(await page.locator('#library-workspace-targets input').count(), 3);
   await page.screenshot({ path: path.join(output, 'material-library.png'), fullPage: true });
   await page.locator('[data-page="main"]').click();
+  await page.locator('#schedule-policy-trigger').click();
+  assert.equal(await page.locator('#schedule-policy-modal').isVisible(), true);
+  assert.equal(await page.locator('#schedule-policy-default-note').isVisible(), true);
+  await page.locator('#schedule-policy-new').click();
+  await page.locator('#schedule-focus-ranges [data-range-start]').fill('04:00');
+  await page.locator('#schedule-focus-ranges [data-range-end]').fill('07:00');
+  await page.locator('#schedule-add-focus').click();
+  await page.locator('#schedule-focus-ranges [data-schedule-range]').nth(1).locator('[data-range-start]').fill('19:00');
+  await page.locator('#schedule-focus-ranges [data-schedule-range]').nth(1).locator('[data-range-end]').fill('20:00');
+  await page.locator('#schedule-avoid-enabled').check();
+  await page.locator('#schedule-avoid-ranges [data-range-start]').fill('05:00');
+  await page.locator('#schedule-avoid-ranges [data-range-end]').fill('06:00');
+  await page.locator('#schedule-interval').fill('60');
+  assert.match(await page.locator('#schedule-policy-preview').innerText(), /预计可排 5 条/);
+  const scheduleModalBox = await page.locator('#schedule-policy-modal .modal-card').boundingBox();
+  assert.ok(scheduleModalBox && scheduleModalBox.x >= 0 && scheduleModalBox.y >= 0 && scheduleModalBox.x + scheduleModalBox.width <= 1080 && scheduleModalBox.y + scheduleModalBox.height <= 720);
+  await page.screenshot({ path: path.join(output, 'schedule-policy-modal.png'), fullPage: true });
+  await page.locator('#schedule-policy-modal [data-close-modal]').last().click();
   await page.evaluate(() => {
     currentPlan = { date: '2026-09-18', status: 'draft', statusDetail: '', warnings: [], items: [{
       itemId: 'commerce-yellow', sequence: 1, sourceActualRow: 27, originalMaterialName: '商城视频.mp4', videoPath: 'C:\\smoke\\商城视频.mp4',

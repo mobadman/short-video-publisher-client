@@ -30,8 +30,63 @@ function formatMinutes(date, minutes) {
   return `${date} ${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 }
 
+function parseClock(value, label) {
+  const match = String(value || '').match(/^(\d{2}):(\d{2})$/);
+  if (!match) throw new Error(`${label}格式不正确`);
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) throw new Error(`${label}格式不正确`);
+  return hours * 60 + minutes;
+}
+
+function policyRanges(policy, key, legacyStart, legacyEnd, required = false) {
+  const source = Array.isArray(policy?.[key]) && policy[key].length
+    ? policy[key]
+    : policy?.[legacyStart] && policy?.[legacyEnd]
+      ? [{ start: policy[legacyStart], end: policy[legacyEnd] }]
+      : [];
+  if (required && !source.length) throw new Error(`至少需要一个${key === 'focusRanges' ? '集中' : '避开'}时段`);
+  if (source.length > 8) throw new Error(`${key === 'focusRanges' ? '集中' : '避开'}时段最多设置8个`);
+  return source.map((range, index) => {
+    const label = `${key === 'focusRanges' ? '集中' : '避开'}时段${index + 1}`;
+    const start = parseClock(range?.start, `${label}开始时间`);
+    const end = parseClock(range?.end, `${label}结束时间`);
+    if (start >= end) throw new Error(`${label}的结束时间必须晚于开始时间`);
+    return { start, end };
+  });
+}
+
+function buildCustomTimes(date, count, policy, options = {}) {
+  if (!Number.isInteger(count) || count < 1 || count > 44) throw new Error('单日视频数量必须在1到44条之间');
+  const intervalMinutes = Number(policy?.intervalMinutes);
+  if (!Number.isInteger(intervalMinutes) || intervalMinutes < 10 || intervalMinutes > 180 || intervalMinutes % 5 !== 0) {
+    throw new Error('发布间隔必须是10到180分钟之间的5分钟整数倍');
+  }
+  const focusRanges = policyRanges(policy, 'focusRanges', 'focusStart', 'focusEnd', true);
+  const avoidRanges = policy?.avoidEnabled
+    ? policyRanges(policy, 'avoidRanges', 'avoidStart', 'avoidEnd', true) : [];
+  const lane = options.lane === 5 ? 5 : 0;
+  const available = new Set();
+  for (const range of focusRanges) {
+    let first = range.start;
+    if (first % 10 !== lane) first += (lane - first % 10 + 10) % 10;
+    for (let minutes = first; minutes <= range.end; minutes += intervalMinutes) {
+      if (avoidRanges.some((avoid) => minutes >= avoid.start && minutes < avoid.end)) continue;
+      available.add(minutes);
+    }
+  }
+  const values = [...available].sort((left, right) => left - right).map((minutes) => formatMinutes(date, minutes));
+  if (values.length < count) {
+    throw new Error(`排期规则最多可安排${values.length}条，当前需要${count}条；请扩大集中时段、缩短间隔或缩小避开时段`);
+  }
+  return values.slice(0, count);
+}
+
 function buildTimes(date, count, options = {}) {
   if (!Number.isInteger(count) || count < 1 || count > 44) throw new Error('单日视频数量必须在1到44条之间');
+  if (options.schedulePolicy && options.schedulePolicy.mode === 'custom') {
+    return buildCustomTimes(date, count, options.schedulePolicy, options);
+  }
   const lane = options.lane === 5 ? 5 : 0;
   if (count === 1) return [formatMinutes(date, 19 * 60 + lane)];
 
@@ -74,4 +129,4 @@ function buildPlan(items, date, options = {}) {
   return arranged.map((item, index) => ({ ...item, sequence: index + 1, scheduledLocal: times[index] }));
 }
 
-module.exports = { normalizeDate, isAllowed, arrangeProducts, buildTimes, buildPlan };
+module.exports = { normalizeDate, isAllowed, arrangeProducts, buildTimes, buildCustomTimes, buildPlan };

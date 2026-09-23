@@ -1,6 +1,6 @@
 const byId = (id) => document.getElementById(id);
 const ui = Object.fromEntries([
-  'global-status','side-workspace-label','workbench-date','accounts-main','accounts-test','settings-accounts','workspace-select','select-workspace','workspace-status','workspace-badge','workspace-platform','sheet-url','save-sheet','open-feishu','detect-feishu','close-feishu','settings-status','settings-state','runtime-ready','readiness-score','readiness-progress','readiness-badge','readiness-detail','metric-estimate-value','metric-download-count','metric-download-value','metric-download-progress','metric-download-meta','metric-publish-count','metric-publish-value','metric-publish-progress','metric-publish-meta','metric-risk','metric-next-time','metric-next-meta','commerce-panel','open-short-titles','resolve-commerce-titles','commerce-status','plan-date','plan-scheme','create-plan-current-filter','clear-cache','plan-body','plan-status','plan-summary','batch-confirm','execute-plan','batch-status','pull-estimate','publish-estimate','select-all','select-none','selection-summary','sync-ids','open-published-videos','export-ids','copy-id-table','open-id-records','view-plan-modal','edit-plan-modal','edit-plan-file','edit-plan-category','edit-plan-model','edit-plan-time','edit-plan-body','edit-plan-tags','edit-plan-choose-cover','edit-plan-cover','edit-cover-mode','edit-commerce-fields','edit-product-short-title','edit-product-link','edit-product-original-title','edit-confirm-short-title','edit-save-short-title','save-plan-item','edit-plan-status','library-workspace-badge','library-model','library-safe-name','library-workspace-targets','library-copies','library-tags','library-short-titles','library-choose-covers','library-cover-summary','library-cover-list','library-save-mode','library-save-product','library-form-status','library-refresh','library-workspace-filter','library-scheme','library-scheme-filter','library-effective-scheme','library-product-list','scheme-name','scheme-start','scheme-end','scheme-mode','scheme-source','scheme-current','scheme-save','scheme-open-folder','scheme-import-batch','scheme-check','scheme-download-template','scheme-status','scheme-inspection','package-scope','export-material-package','import-material-package','package-status','test-platform','test-platform-badge','test-id-tool','choose-video','choose-cover','video-path','cover-path','test-body','body-count','test-tags','scheduled-at','test-confirm','prepare-test','prepare-status','test-resolve-id','test-id-status','watermark-enabled','guard-seconds','save-preferences','preferences-status','close-browser','settings-close-feishu','finish-guide','open-donation','donation-modal','delete-account-modal','delete-account-description','delete-check','delete-account-name','delete-confirm-phrase','confirm-delete-account','delete-account-status'
+  'global-status','side-workspace-label','workbench-date','accounts-main','accounts-test','settings-accounts','workspace-select','select-workspace','workspace-status','workspace-badge','workspace-platform','sheet-url','save-sheet','open-feishu','detect-feishu','close-feishu','settings-status','settings-state','runtime-ready','readiness-score','readiness-progress','readiness-badge','readiness-detail','metric-estimate-value','metric-download-count','metric-download-value','metric-download-progress','metric-download-meta','metric-publish-count','metric-publish-value','metric-publish-progress','metric-publish-meta','metric-risk','metric-next-time','metric-next-meta','commerce-panel','open-short-titles','resolve-commerce-titles','commerce-status','plan-date','plan-scheme','schedule-policy-trigger','schedule-policy-label','schedule-policy-modal','schedule-policy-list','schedule-policy-new','schedule-policy-default-note','schedule-policy-editor','schedule-policy-name','schedule-focus-start','schedule-focus-end','schedule-interval','schedule-avoid-enabled','schedule-avoid-fields','schedule-avoid-start','schedule-avoid-end','schedule-policy-preview','schedule-policy-save','schedule-policy-delete','schedule-policy-status','create-plan-current-filter','clear-cache','plan-body','plan-status','plan-summary','batch-confirm','execute-plan','batch-status','pull-estimate','publish-estimate','select-all','select-none','selection-summary','sync-ids','open-published-videos','export-ids','copy-id-table','open-id-records','view-plan-modal','edit-plan-modal','edit-plan-file','edit-plan-category','edit-plan-model','edit-plan-time','edit-plan-body','edit-plan-tags','edit-plan-choose-cover','edit-plan-cover','edit-cover-mode','edit-commerce-fields','edit-product-short-title','edit-product-link','edit-product-original-title','edit-confirm-short-title','edit-save-short-title','save-plan-item','edit-plan-status','library-workspace-badge','library-model','library-safe-name','library-workspace-targets','library-copies','library-tags','library-short-titles','library-choose-covers','library-cover-summary','library-cover-list','library-save-mode','library-save-product','library-form-status','library-refresh','library-workspace-filter','library-scheme','library-scheme-filter','library-effective-scheme','library-product-list','scheme-name','scheme-start','scheme-end','scheme-mode','scheme-source','scheme-current','scheme-save','scheme-open-folder','scheme-import-batch','scheme-check','scheme-download-template','scheme-status','scheme-inspection','package-scope','export-material-package','import-material-package','package-status','test-platform','test-platform-badge','test-id-tool','choose-video','choose-cover','video-path','cover-path','test-body','body-count','test-tags','scheduled-at','test-confirm','prepare-test','prepare-status','test-resolve-id','test-id-status','watermark-enabled','guard-seconds','save-preferences','preferences-status','close-browser','settings-close-feishu','finish-guide','open-donation','donation-modal','delete-account-modal','delete-account-description','delete-check','delete-account-name','delete-confirm-phrase','confirm-delete-account','delete-account-status'
 ].map((id) => [id, byId(id)]));
 let workspaces = [], activeWorkspace = null, accounts = [], browserStatus = {}, settings = {}, feishuStatus = {}, libraryPaths = {}, currentPlan = null, estimates = {};
 let videoPath = null, coverPath = null, busy = false, activePage = 'main';
@@ -12,7 +12,29 @@ let editingCoverMode = 'library-cover';
 let libraryCoverPaths = [];
 let libraryCatalog = [];
 let librarySchemes = [];
+let schedulePolicies = [];
+let activeSchedulePolicyId = 'default';
+let editingSchedulePolicyId = 'default';
 let operationKind = null;
+const scheduleFocusRanges = ui['schedule-focus-start'].closest('.schedule-time-grid');
+const scheduleAvoidRanges = ui['schedule-avoid-start'].closest('.schedule-time-grid');
+const scheduleIntervalField = ui['schedule-interval'].closest('.field');
+scheduleFocusRanges.insertAdjacentElement('afterend', scheduleIntervalField);
+scheduleIntervalField.classList.add('schedule-interval-field');
+scheduleFocusRanges.id = 'schedule-focus-ranges';
+scheduleAvoidRanges.id = 'schedule-avoid-ranges';
+scheduleFocusRanges.className = 'schedule-ranges';
+scheduleAvoidRanges.className = 'schedule-ranges';
+const addFocusRangeButton = document.createElement('button');
+addFocusRangeButton.id = 'schedule-add-focus';
+addFocusRangeButton.className = 'quiet schedule-add-range';
+addFocusRangeButton.textContent = '＋ 添加集中时段';
+scheduleFocusRanges.insertAdjacentElement('afterend', addFocusRangeButton);
+const addAvoidRangeButton = document.createElement('button');
+addAvoidRangeButton.id = 'schedule-add-avoid';
+addAvoidRangeButton.className = 'quiet schedule-add-range';
+addAvoidRangeButton.textContent = '＋ 添加避开时段';
+scheduleAvoidRanges.insertAdjacentElement('afterend', addAvoidRangeButton);
 
 const stateLabels = {
   pending: '待发布', running: '执行中', verified: '平台已确认提交',
@@ -53,6 +75,92 @@ function updatePlanSchemeLabel() {
   const autoOption = ui['plan-scheme'].querySelector('option[value="auto"]');
   if (autoOption) autoOption.textContent = `自动 · ${effective?.name || '常规方案'}`;
   ui['plan-scheme'].value = previous;
+}
+
+function schedulePolicySummary(policy) {
+  if (!policy || policy.mode === 'default') return '按数量自动分布';
+  const focusRanges = policy.focusRanges?.length ? policy.focusRanges : [{ start: policy.focusStart, end: policy.focusEnd }];
+  const avoidRanges = policy.avoidRanges?.length ? policy.avoidRanges : policy.avoidStart ? [{ start: policy.avoidStart, end: policy.avoidEnd }] : [];
+  const avoid = policy.avoidEnabled && avoidRanges.length ? ` · 避开${avoidRanges.length}段` : '';
+  return `集中${focusRanges.length}段 · 每${policy.intervalMinutes}分钟${avoid}`;
+}
+
+function rangeRowHtml(type, range, index, count) {
+  const label = type === 'focus' ? '集中' : '避开';
+  return `<div class="schedule-range-row" data-schedule-range="${type}"><span>${label} ${index + 1}</span><label><span>开始</span><input type="time" step="300" data-range-start value="${escapeHtml(range.start || '')}"></label><span class="schedule-range-separator">至</span><label><span>结束</span><input type="time" step="300" data-range-end value="${escapeHtml(range.end || '')}"></label><button class="quiet schedule-remove-range" data-remove-range="${type}" aria-label="删除${label}时段" ${type === 'focus' && count === 1 ? 'disabled' : ''}>×</button></div>`;
+}
+
+function renderRangeRows(container, type, ranges) {
+  const safeRanges = ranges.length ? ranges.slice(0, 8) : type === 'focus' ? [{ start: '13:00', end: '23:00' }] : [];
+  container.innerHTML = safeRanges.map((range, index) => rangeRowHtml(type, range, index, safeRanges.length)).join('');
+  const addButton = type === 'focus' ? addFocusRangeButton : addAvoidRangeButton;
+  addButton.disabled = safeRanges.length >= 8;
+}
+
+function collectRangeRows(container) {
+  return [...container.querySelectorAll('[data-schedule-range]')].map((row) => ({
+    start: row.querySelector('[data-range-start]').value,
+    end: row.querySelector('[data-range-end]').value
+  }));
+}
+
+function setScheduleEditor(policy = null) {
+  editingSchedulePolicyId = policy?.id || null;
+  const custom = policy?.mode === 'custom' || !policy;
+  ui['schedule-policy-default-note'].hidden = custom;
+  ui['schedule-policy-editor'].hidden = !custom;
+  if (!custom) return;
+  ui['schedule-policy-name'].value = policy?.name || '';
+  const focusRanges = policy?.focusRanges?.length ? policy.focusRanges
+    : policy?.focusStart ? [{ start: policy.focusStart, end: policy.focusEnd }] : [{ start: '13:00', end: '23:00' }];
+  const avoidRanges = policy?.avoidRanges?.length ? policy.avoidRanges
+    : policy?.avoidStart ? [{ start: policy.avoidStart, end: policy.avoidEnd }] : [{ start: '17:00', end: '18:00' }];
+  renderRangeRows(scheduleFocusRanges, 'focus', focusRanges);
+  renderRangeRows(scheduleAvoidRanges, 'avoid', avoidRanges);
+  ui['schedule-interval'].value = policy?.intervalMinutes || 60;
+  ui['schedule-avoid-enabled'].checked = policy?.avoidEnabled === true;
+  ui['schedule-avoid-fields'].hidden = !ui['schedule-avoid-enabled'].checked;
+  scheduleAvoidRanges.hidden = !ui['schedule-avoid-enabled'].checked;
+  addAvoidRangeButton.hidden = !ui['schedule-avoid-enabled'].checked;
+  ui['schedule-policy-delete'].hidden = !policy;
+  updateSchedulePreview();
+}
+
+function renderSchedulePolicies() {
+  const active = schedulePolicies.find((policy) => policy.id === activeSchedulePolicyId) || schedulePolicies[0];
+  ui['schedule-policy-label'].textContent = active?.name || '默认排期';
+  ui['schedule-policy-list'].innerHTML = schedulePolicies.map((policy) => `<button class="schedule-policy-option ${policy.id === activeSchedulePolicyId ? 'active' : ''}" data-schedule-policy="${escapeHtml(policy.id)}"><strong>${escapeHtml(policy.name)}</strong><span>${escapeHtml(schedulePolicySummary(policy))}</span></button>`).join('');
+}
+
+function updateSchedulePreview() {
+  if (ui['schedule-policy-editor'].hidden) return;
+  const toMinutes = (value) => {
+    const match = String(value || '').match(/^(\d{2}):(\d{2})$/);
+    return match ? Number(match[1]) * 60 + Number(match[2]) : NaN;
+  };
+  const interval = Number(ui['schedule-interval'].value);
+  const focusRanges = collectRangeRows(scheduleFocusRanges).map((range) => ({ start: toMinutes(range.start), end: toMinutes(range.end) }));
+  const avoidRanges = ui['schedule-avoid-enabled'].checked
+    ? collectRangeRows(scheduleAvoidRanges).map((range) => ({ start: toMinutes(range.start), end: toMinutes(range.end) })) : [];
+  const invalidRange = [...focusRanges, ...avoidRanges].some((range) => !Number.isFinite(range.start) || !Number.isFinite(range.end) || range.start >= range.end);
+  if (!focusRanges.length || invalidRange || !Number.isInteger(interval) || interval < 10 || interval > 180 || interval % 5) {
+    ui['schedule-policy-preview'].textContent = '请填写有效时段；间隔需为10–180分钟之间的5分钟整数倍。';
+    return;
+  }
+  const lane = activeWorkspace?.mode === 'commerce' ? 5 : 0;
+  const slotMinutes = new Set();
+  for (const range of focusRanges) {
+    let first = range.start;
+    if (first % 10 !== lane) first += (lane - first % 10 + 10) % 10;
+    for (let minute = first; minute <= range.end; minute += interval) {
+      if (avoidRanges.some((avoid) => minute >= avoid.start && minute < avoid.end)) continue;
+      slotMinutes.add(minute);
+    }
+  }
+  const slots = [...slotMinutes].sort((left, right) => left - right).map((minute) => `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`);
+  ui['schedule-policy-preview'].textContent = slots.length
+    ? `当前工作区预计可排 ${slots.length} 条：${slots.slice(0, 6).join('、')}${slots.length > 6 ? `…共${slots.length}个时刻` : ''}。生成后仍可逐条编辑。`
+    : '当前条件没有可用发布时间，请调整集中或避开时段。';
 }
 
 function renderLibraryControls() {
@@ -194,7 +302,7 @@ function renderPlan() {
   const completed = currentPlan.items.filter((item) => ['verified','id-resolved'].includes(item.execution?.state)).length;
   const uncertain = currentPlan.items.filter((item) => item.execution?.state === 'uncertain').length;
   const firstFrameCount = selected.filter((item) => item.coverMode === 'video-first-frame').length;
-  ui['plan-summary'].textContent = `${currentPlan.date} · ${currentPlan.items.length}条 · ${completed}条已完成 · 内容方案：${currentPlan.contentScheme?.name || '常规方案'}`;
+  ui['plan-summary'].textContent = `${currentPlan.date} · ${currentPlan.items.length}条 · ${completed}条已完成 · ${currentPlan.schedulePolicy?.name || '默认排期'} · 内容方案：${currentPlan.contentScheme?.name || '常规方案'}`;
   ui['selection-summary'].textContent = `本次将执行 ${selected.length} 条${firstFrameCount ? `；${firstFrameCount}条使用视频首帧` : ''}${uncertain ? `；${uncertain}条待人工确认` : ''}`;
   ui['plan-body'].innerHTML = currentPlan.items.map((item) => {
     const state = item.execution?.state || 'pending';
@@ -381,6 +489,7 @@ function render() {
   ui['sync-ids'].hidden = activeWorkspace?.platform === 'wechat-channels';
   ui['open-published-videos'].hidden = activeWorkspace?.platform === 'wechat-channels';
   renderLibraryControls();
+  renderSchedulePolicies();
   renderSettingsAccounts();
   renderPlan();
   renderMetrics();
@@ -388,7 +497,7 @@ function render() {
 
 async function refresh() {
   const results = await Promise.allSettled([
-    window.publisher.listWorkspaces(), window.publisher.listAccounts(), window.publisher.getBrowserStatus(), window.publisher.getSettings(), window.publisher.getFeishuBrowserStatus(), window.publisher.getLibraryPaths(), window.publisher.getCurrentPlan(), window.publisher.getDurationEstimates(), window.publisher.listLibrarySchemes()
+    window.publisher.listWorkspaces(), window.publisher.listAccounts(), window.publisher.getBrowserStatus(), window.publisher.getSettings(), window.publisher.getFeishuBrowserStatus(), window.publisher.getLibraryPaths(), window.publisher.getCurrentPlan(), window.publisher.getDurationEstimates(), window.publisher.listLibrarySchemes(), window.publisher.listSchedulePolicies()
   ]);
   if (results[0].status === 'rejected') throw results[0].reason;
   workspaces = results[0].value.items;
@@ -404,6 +513,10 @@ async function refresh() {
   if (results[8].status === 'fulfilled') {
     librarySchemes = results[8].value.items || [];
     ui['library-effective-scheme'].textContent = `当前：${results[8].value.effective?.name || '常规方案'}`;
+  }
+  if (results[9].status === 'fulfilled') {
+    schedulePolicies = results[9].value.items || [];
+    activeSchedulePolicyId = results[9].value.activeId || 'default';
   }
   const nonAccountErrors = results.slice(1).filter((result) => result.status === 'rejected');
   if (nonAccountErrors.length) setStatus(`账号模块已正常加载；另有${nonAccountErrors.length}个模块初始化失败，请查看对应区域。`, 'error');
@@ -629,10 +742,115 @@ ui['test-platform'].addEventListener('change', () => {
   render();
 });
 ui['plan-date'].addEventListener('change', updatePlanSchemeLabel);
+ui['schedule-policy-trigger'].addEventListener('click', () => {
+  const active = schedulePolicies.find((policy) => policy.id === activeSchedulePolicyId) || schedulePolicies[0];
+  renderSchedulePolicies();
+  setScheduleEditor(active);
+  ui['schedule-policy-status'].textContent = '';
+  ui['schedule-policy-modal'].hidden = false;
+});
+ui['schedule-policy-list'].addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-schedule-policy]');
+  if (!button) return;
+  try {
+    const state = await window.publisher.selectSchedulePolicy(button.dataset.schedulePolicy);
+    schedulePolicies = state.items;
+    activeSchedulePolicyId = state.activeId;
+    renderSchedulePolicies();
+    setScheduleEditor(schedulePolicies.find((policy) => policy.id === activeSchedulePolicyId));
+    ui['schedule-policy-status'].textContent = '已设为下一次生成计划使用的排期方案。';
+    ui['schedule-policy-status'].className = 'panel-note success';
+  } catch (error) {
+    ui['schedule-policy-status'].textContent = error.message;
+    ui['schedule-policy-status'].className = 'panel-note error';
+  }
+});
+ui['schedule-policy-new'].addEventListener('click', () => {
+  setScheduleEditor(null);
+  ui['schedule-policy-name'].focus();
+  ui['schedule-policy-status'].textContent = '填写规则后保存；保存成功后会自动设为当前方案。';
+  ui['schedule-policy-status'].className = 'panel-note';
+});
+document.querySelectorAll('[data-schedule-preset]').forEach((button) => button.addEventListener('click', () => {
+  const presets = { morning: ['08:00','12:00'], afternoon: ['13:00','18:00'], evening: ['18:00','23:00'], 'all-day': ['08:00','23:00'] };
+  const [start, end] = presets[button.dataset.schedulePreset];
+  renderRangeRows(scheduleFocusRanges, 'focus', [{ start, end }]);
+  updateSchedulePreview();
+}));
+function addScheduleRange(container, type) {
+  const ranges = collectRangeRows(container);
+  if (ranges.length >= 8) return;
+  const fallback = type === 'focus' ? { start: '18:00', end: '23:00' } : { start: '17:00', end: '18:00' };
+  renderRangeRows(container, type, [...ranges, fallback]);
+  updateSchedulePreview();
+}
+addFocusRangeButton.addEventListener('click', () => addScheduleRange(scheduleFocusRanges, 'focus'));
+addAvoidRangeButton.addEventListener('click', () => addScheduleRange(scheduleAvoidRanges, 'avoid'));
+for (const container of [scheduleFocusRanges, scheduleAvoidRanges]) {
+  container.addEventListener('input', updateSchedulePreview);
+  container.addEventListener('change', updateSchedulePreview);
+  container.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-remove-range]');
+    if (!button || button.disabled) return;
+    const type = button.dataset.removeRange;
+    const ranges = collectRangeRows(container);
+    const index = [...container.querySelectorAll('[data-schedule-range]')].indexOf(button.closest('[data-schedule-range]'));
+    ranges.splice(index, 1);
+    renderRangeRows(container, type, ranges);
+    updateSchedulePreview();
+  });
+}
+ui['schedule-interval'].addEventListener('input', updateSchedulePreview);
+ui['schedule-interval'].addEventListener('change', updateSchedulePreview);
+ui['schedule-avoid-enabled'].addEventListener('change', () => {
+  if (ui['schedule-avoid-enabled'].checked && !collectRangeRows(scheduleAvoidRanges).length) {
+    renderRangeRows(scheduleAvoidRanges, 'avoid', [{ start: '17:00', end: '18:00' }]);
+  }
+  scheduleAvoidRanges.hidden = !ui['schedule-avoid-enabled'].checked;
+  addAvoidRangeButton.hidden = !ui['schedule-avoid-enabled'].checked;
+  updateSchedulePreview();
+});
+ui['schedule-policy-save'].addEventListener('click', async () => {
+  try {
+    const state = await window.publisher.saveSchedulePolicy({
+      id: editingSchedulePolicyId || undefined,
+      name: ui['schedule-policy-name'].value,
+      intervalMinutes: Number(ui['schedule-interval'].value),
+      focusRanges: collectRangeRows(scheduleFocusRanges),
+      avoidEnabled: ui['schedule-avoid-enabled'].checked,
+      avoidRanges: collectRangeRows(scheduleAvoidRanges)
+    });
+    schedulePolicies = state.items;
+    activeSchedulePolicyId = state.activeId;
+    renderSchedulePolicies();
+    setScheduleEditor(schedulePolicies.find((policy) => policy.id === activeSchedulePolicyId));
+    ui['schedule-policy-status'].textContent = '方案已保存并用于下一次生成计划。';
+    ui['schedule-policy-status'].className = 'panel-note success';
+  } catch (error) {
+    ui['schedule-policy-status'].textContent = error.message;
+    ui['schedule-policy-status'].className = 'panel-note error';
+  }
+});
+ui['schedule-policy-delete'].addEventListener('click', async () => {
+  const policy = schedulePolicies.find((item) => item.id === editingSchedulePolicyId);
+  if (!policy || policy.builtIn || !confirm(`删除排期方案“${policy.name}”？已生成计划不会受到影响。`)) return;
+  try {
+    const state = await window.publisher.deleteSchedulePolicy(policy.id);
+    schedulePolicies = state.items;
+    activeSchedulePolicyId = state.activeId;
+    renderSchedulePolicies();
+    setScheduleEditor(schedulePolicies.find((item) => item.id === activeSchedulePolicyId));
+    ui['schedule-policy-status'].textContent = '排期方案已删除；已生成计划保持不变。';
+    ui['schedule-policy-status'].className = 'panel-note success';
+  } catch (error) {
+    ui['schedule-policy-status'].textContent = error.message;
+    ui['schedule-policy-status'].className = 'panel-note error';
+  }
+});
 
 function createPlan() {
   if (!ui['plan-date'].value) { ui['plan-status'].textContent = '请先选择发布日期'; ui['plan-status'].className = 'panel-note error'; return; }
-  run(async () => { ui['plan-status'].textContent = '正在使用当前飞书筛选结果拉取…'; currentPlan = await window.publisher.createPlan(ui['plan-date'].value, 'current', ui['plan-scheme'].value); ui['batch-confirm'].checked = false; }, '计划已经生成，请逐行人工检查。', ui['plan-status'], 'pull');
+  run(async () => { ui['plan-status'].textContent = '正在使用当前飞书筛选结果拉取…'; currentPlan = await window.publisher.createPlan(ui['plan-date'].value, 'current', ui['plan-scheme'].value, activeSchedulePolicyId); ui['batch-confirm'].checked = false; }, '计划已经生成，请逐行人工检查。', ui['plan-status'], 'pull');
 }
 ui['create-plan-current-filter'].addEventListener('click', createPlan);
 document.querySelector('.date-control').addEventListener('click', (event) => {

@@ -16,6 +16,7 @@ const { WechatChannelsBrowserManager } = require('./wechat-channels-browser-mana
 const { createPublishingAdapter } = require('./publishing-adapters');
 const { writePackage, packageSummary, importPackage } = require('./material-package');
 const { parseMaterialRows, templateCsv } = require('./material-batch');
+const { SchedulePolicyStore } = require('./schedule-policy-store');
 
 // 工作台本身不需要 GPU 合成；关闭硬件加速可避免部分 Windows 机器的 Electron GPU 子进程崩溃。
 // 发布用 Chrome 由 Playwright 单独启动，不受此设置影响。
@@ -34,6 +35,7 @@ let workspaceStore;
 let wechatBrowserManager;
 let publishingAdapter;
 let nativeDialogHelperPath;
+let schedulePolicyStore;
 
 function elapsedText(durationMs) {
   const seconds = Math.max(1, Math.round(durationMs / 1000));
@@ -412,14 +414,20 @@ function registerIpc() {
     return { plan: planService.current(), proposed, needsManual, skipped, failures };
   });
   ipcMain.handle('duration:estimates', () => durationStore.estimates(planService.current()));
+  ipcMain.handle('schedule-policies:list', () => schedulePolicyStore.list());
+  ipcMain.handle('schedule-policies:save', (_event, input) => schedulePolicyStore.save(input || {}));
+  ipcMain.handle('schedule-policies:select', (_event, id) => schedulePolicyStore.select(id));
+  ipcMain.handle('schedule-policies:delete', (_event, id) => schedulePolicyStore.delete(id));
   ipcMain.handle('plan:create', async (_event, input) => {
     const date = typeof input === 'string' ? input : input?.date;
     const filterMode = typeof input === 'object' ? input?.filterMode : 'auto';
     const schemeId = typeof input === 'object' ? input?.schemeId : 'auto';
+    const schedulePolicyId = typeof input === 'object' ? input?.schedulePolicyId : 'default';
+    const schedulePolicy = schedulePolicyStore.get(schedulePolicyId);
     const startedAt = Date.now();
     startGuard('pull');
     try {
-      const plan = await planService.create(String(date || ''), { filterMode, schemeId });
+      const plan = await planService.create(String(date || ''), { filterMode, schemeId, schedulePolicy });
       const durationMs = Date.now() - startedAt;
       durationStore.record('pull', plan.items.length, durationMs);
       automationGuard.stop();
@@ -532,6 +540,8 @@ app.whenReady().then(() => {
   workspaceStore = new WorkspaceStore(app.getPath('userData'));
   workspaceStore.initialize(configStore.settings().sheetUrl);
   durationStore = new DurationStore(app.getPath('userData'));
+  schedulePolicyStore = new SchedulePolicyStore(app.getPath('userData'));
+  schedulePolicyStore.initialize();
   automationGuard = new AutomationGuard();
   nativeDialogHelperPath = app.isPackaged
     ? path.join(process.resourcesPath, 'native', 'FileDialogHelper.exe')

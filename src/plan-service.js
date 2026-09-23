@@ -92,7 +92,7 @@ function upgradeItem(item, index) {
 
 function upgradePlan(plan) {
   if (!plan || plan.invalid) return plan;
-  return { ...plan, schemaVersion: 4, items: (plan.items || []).map(upgradeItem) };
+  return { ...plan, schemaVersion: 5, items: (plan.items || []).map(upgradeItem) };
 }
 
 class PlanService {
@@ -129,6 +129,9 @@ class PlanService {
     if (!settings.sheetUrl) throw new Error('\u8bf7\u5148\u4e3a\u5f53\u524d\u5de5\u4f5c\u533a\u914d\u7f6e\u98de\u4e66\u7535\u5b50\u8868\u683c\u94fe\u63a5');
     const filterMode = options.filterMode || 'auto';
     const requestedSchemeId = String(options.schemeId || 'auto');
+    const schedulePolicy = options.schedulePolicy?.mode === 'custom'
+      ? { ...options.schedulePolicy, mode: 'custom', builtIn: false }
+      : { id: 'default', name: '默认排期', mode: 'default', builtIn: true };
     const contentScheme = this.libraryStore.resolveScheme
       ? this.libraryStore.resolveScheme(date, requestedSchemeId) : { id: 'default', name: '常规方案', selectionMode: 'auto' };
     const randomSeed = crypto.randomUUID();
@@ -139,7 +142,10 @@ class PlanService {
     const { rows, allowColumnExists } = result;
     if (!rows.length) throw new Error(`【${date}】没有找到允许发布的视频`);
     if (rows.length > 44) throw new Error(`【${date}】共有${rows.length}条视频，超过单日44条上限`);
-    const ordered = buildPlan(rows, date, { lane: this.workspace?.mode === 'commerce' ? 5 : 0 });
+    const ordered = buildPlan(rows, date, {
+      lane: this.workspace?.mode === 'commerce' ? 5 : 0,
+      schedulePolicy
+    });
     const items = [];
     const modelOrdinals = new Map();
     const transfers = [];
@@ -238,7 +244,7 @@ class PlanService {
       }, index));
     }
     const plan = this.save({
-      schemaVersion: 4,
+      schemaVersion: 5,
       id: crypto.randomUUID(),
       date,
       createdAt: new Date().toISOString(),
@@ -264,6 +270,20 @@ class PlanService {
         endDate: contentScheme.endDate || '',
         lockedAt: new Date().toISOString(),
         randomSeed
+      },
+      schedulePolicy: {
+        id: schedulePolicy.id,
+        name: schedulePolicy.name,
+        mode: schedulePolicy.mode,
+        intervalMinutes: schedulePolicy.intervalMinutes || null,
+        focusRanges: Array.isArray(schedulePolicy.focusRanges) && schedulePolicy.focusRanges.length
+          ? schedulePolicy.focusRanges.map((range) => ({ ...range }))
+          : schedulePolicy.focusStart && schedulePolicy.focusEnd ? [{ start: schedulePolicy.focusStart, end: schedulePolicy.focusEnd }] : [],
+        avoidEnabled: schedulePolicy.avoidEnabled === true,
+        avoidRanges: Array.isArray(schedulePolicy.avoidRanges) && schedulePolicy.avoidRanges.length
+          ? schedulePolicy.avoidRanges.map((range) => ({ ...range }))
+          : schedulePolicy.avoidStart && schedulePolicy.avoidEnd ? [{ start: schedulePolicy.avoidStart, end: schedulePolicy.avoidEnd }] : [],
+        lockedAt: new Date().toISOString()
       },
       warnings: [],
       status: 'draft',

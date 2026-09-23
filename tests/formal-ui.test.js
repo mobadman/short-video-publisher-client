@@ -10,10 +10,10 @@ const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8
 const accountStore = fs.readFileSync(path.join(__dirname, '..', 'src', 'account-store.js'), 'utf8');
 const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
 
-test('4.2.1流程仪表盘版本名称和商城链接入口完整显示', () => {
+test('4.3.0流程仪表盘版本名称和商城链接入口完整显示', () => {
   assert.match(html, /发布工作台/);
   assert.match(html, /短视频批量发布助手/);
-  assert.match(html, /4\.2\.1 · 本地工作台/);
+  assert.match(html, /4\.3\.0 · 本地工作台/);
   assert.match(html, /id="workspace-select"/);
   assert.match(html, /id="commerce-panel"/);
   assert.match(html, /商品短标题库/);
@@ -55,8 +55,8 @@ test('原版关键操作入口在指挥台完整保留', () => {
   ]) assert.match(html, new RegExp(`id="${id}"`));
 });
 
-test('4.2.1沿用3.1.2的应用身份和本地Chrome Profile目录', () => {
-  assert.equal(packageJson.version, '4.2.1');
+test('4.3.0沿用3.1.2的应用身份和本地Chrome Profile目录', () => {
+  assert.equal(packageJson.version, '4.3.0');
   assert.equal(packageJson.build.appId, 'cn.boguan.shortvideo.publisher');
   assert.match(accountStore, /path\.join\(dataRoot, 'chrome-profiles'\)/);
   assert.match(main, /app\.getPath\('userData'\), '工作区', workspace\.id, 'browser-profiles', 'feishu-fixed-145'/);
@@ -76,6 +76,20 @@ test('4.2.1包含素材方案、素材包和新版工作台文案', () => {
   assert.doesNotMatch(html, /今日准备度/);
   assert.doesNotMatch(styles, /\.compact-table-wrap\s*\{[^}]*max-height:\s*400px/);
   assert.match(styles, /\.compact-table-wrap\s*\{[^}]*calc\(100vh - 600px\)/);
+});
+
+test('4.3.0包含可复用排期算法小窗且生成计划锁定方案', () => {
+  for (const id of ['schedule-policy-trigger','schedule-policy-modal','schedule-policy-list','schedule-policy-new','schedule-policy-save','schedule-policy-delete']) {
+    assert.match(html, new RegExp(`id="${id}"`));
+  }
+  assert.match(html, /默认排期/);
+  assert.match(html, /集中开始/);
+  assert.match(html, /避开一个时段/);
+  assert.match(app, /activeSchedulePolicyId/);
+  assert.match(app, /schedule-add-focus/);
+  assert.match(app, /focusRanges/);
+  assert.match(app, /avoidRanges/);
+  assert.match(main, /schedulePolicyStore\.get/);
 });
 
 test('4.1.0包含素材库表单与商城首帧封面入口', () => {

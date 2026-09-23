@@ -44,3 +44,34 @@ test('1至44条排期集中在下午晚上且不超出边界', () => {
     assert.equal(values.some((value) => commerceValues.includes(value)), false);
   }
 });
+
+test('自定义排期按固定间隔集中发布并跳过避开时段', () => {
+  const policy = {
+    mode: 'custom', intervalMinutes: 30,
+    focusStart: '13:00', focusEnd: '16:00',
+    avoidEnabled: true, avoidStart: '14:00', avoidEnd: '15:00'
+  };
+  assert.deepEqual(buildTimes('2026-11-01', 5, { schedulePolicy: policy }), [
+    '2026-11-01 13:00', '2026-11-01 13:30', '2026-11-01 15:00', '2026-11-01 15:30', '2026-11-01 16:00'
+  ]);
+  assert.equal(buildTimes('2026-11-01', 2, { schedulePolicy: policy, lane: 5 })[0], '2026-11-01 13:05');
+});
+
+test('多个集中时段合并后统一扣除多个避开时段', () => {
+  const policy = {
+    mode: 'custom', intervalMinutes: 60,
+    focusRanges: [{ start: '04:00', end: '07:00' }, { start: '19:00', end: '20:00' }],
+    avoidEnabled: true,
+    avoidRanges: [{ start: '05:00', end: '06:00' }, { start: '19:30', end: '20:00' }]
+  };
+  assert.deepEqual(buildTimes('2026-11-01', 5, { schedulePolicy: policy }), [
+    '2026-11-01 04:00', '2026-11-01 06:00', '2026-11-01 07:00', '2026-11-01 19:00', '2026-11-01 20:00'
+  ]);
+});
+
+test('自定义排期容量不足时在拉取前给出可操作提示', () => {
+  assert.throws(() => buildTimes('2026-11-01', 4, { schedulePolicy: {
+    mode: 'custom', intervalMinutes: 60,
+    focusStart: '18:00', focusEnd: '20:00', avoidEnabled: false
+  } }), /最多可安排3条/);
+});

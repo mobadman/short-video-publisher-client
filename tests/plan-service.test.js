@@ -22,9 +22,9 @@ test('保存当前工作区链接后计划服务立即读取新链接', () => {
   const service = new PlanService({ settings: () => ({}) }, { cacheRoot }, {}, { workspace });
   service.updateWorkspace({
     ...workspace,
-    sheetUrl: 'https://team.feishu.cn/wiki/example?sheet=mlxXMF'
+    sheetUrl: 'https://example.invalid/mock-sheet'
   });
-  assert.equal(service.settings().sheetUrl, 'https://team.feishu.cn/wiki/example?sheet=mlxXMF');
+  assert.equal(service.settings().sheetUrl, 'https://example.invalid/mock-sheet');
 });
 
 test('计划项勾选、状态持久化和ID导出互不影响', () => {
@@ -74,7 +74,7 @@ test('商城计划从飞书商品链接读取，并要求确认平台候选短�
   const workspace = {
     id: 'douyin-commerce', name: '抖音商城号', platform: 'douyin', mode: 'commerce',
     publisherAccountId: 'production-account', commerceAccountId: null, commerceRequired: true,
-    sheetUrl: 'https://team.feishu.cn/sheets/commerce', columns: {}
+    sheetUrl: 'https://example.invalid/mock-commerce-sheet', columns: {}
   };
   const libraryStore = {
     cacheRoot,
@@ -115,7 +115,7 @@ test('商城计划只缺封面时使用黄色首帧警告且仍可发布', () =>
     scheduledLocal: '2026-09-18 18:00', selected: true, problems: ['封面'],
     commerce: { required: true, productUrl: 'https://haohuo.jinritemai.com/ecommerce/trade/detail?id=1', productShortTitle: 'G23微蒸烤', shortTitleConfirmed: true }
   }] });
-  assert.equal(plan.schemaVersion, 4);
+  assert.equal(plan.schemaVersion, 5);
   assert.equal(plan.items[0].ready, true);
   assert.equal(plan.items[0].coverMode, 'video-first-frame');
   assert.deepEqual(plan.items[0].problems, []);
@@ -148,7 +148,7 @@ test('计划生成锁定内容方案和随机文案结果', async () => {
     fs.writeFileSync(filePath, name);
     return filePath;
   });
-  const workspace = { id: 'douyin-standard', name: '主页号', platform: 'douyin', mode: 'standard', publisherAccountId: 'production-account', sheetUrl: 'https://example.feishu.cn/sheets/test', columns: {} };
+  const workspace = { id: 'douyin-standard', name: '主页号', platform: 'douyin', mode: 'standard', publisherAccountId: 'production-account', sheetUrl: 'https://example.invalid/mock-standard-sheet', columns: {} };
   const copies = ['文案A', '文案B', '文案C'];
   const libraryStore = {
     cacheRoot,
@@ -162,9 +162,15 @@ test('计划生成锁定内容方案和随机文案结果', async () => {
     downloadMaterial: async (item) => videos[item.sourceRow - 2]
   };
   const service = new PlanService({ settings: () => ({}) }, libraryStore, feishuService, { workspace });
-  const plan = await service.create('2026-11-05', { schemeId: 'auto' });
+  const plan = await service.create('2026-11-05', { schemeId: 'auto', schedulePolicy: {
+    id: 'double-11-evening', name: '双十一晚间', mode: 'custom', intervalMinutes: 30,
+    focusStart: '18:00', focusEnd: '20:00', avoidEnabled: false
+  } });
   assert.equal(plan.contentScheme.id, 'double-11');
   assert.equal(plan.contentScheme.name, '双十一');
   assert.equal(new Set(plan.items.map((item) => item.body)).size, 3);
   assert.ok(plan.items.every((item) => item.contentSelection.schemeId === 'double-11'));
+  assert.equal(plan.schedulePolicy.name, '双十一晚间');
+  assert.equal(plan.schedulePolicy.lockedAt.length > 0, true);
+  assert.deepEqual(plan.items.map((item) => item.scheduledLocal), ['2026-11-05 18:00', '2026-11-05 18:30', '2026-11-05 19:00']);
 });
