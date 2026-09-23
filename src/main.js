@@ -14,6 +14,8 @@ const { AutomationGuard } = require('./automation-guard');
 const { WorkspaceStore } = require('./workspace-store');
 const { WechatChannelsBrowserManager } = require('./wechat-channels-browser-manager');
 const { createPublishingAdapter } = require('./publishing-adapters');
+const { writePackage, packageSummary, importPackage } = require('./material-package');
+const { parseMaterialRows, templateCsv } = require('./material-batch');
 
 // 工作台本身不需要 GPU 合成；关闭硬件加速可避免部分 Windows 机器的 Electron GPU 子进程崩溃。
 // 发布用 Chrome 由 Playwright 单独启动，不受此设置影响。
@@ -72,6 +74,15 @@ function managerForAccount(account) {
 function combinedBrowserStatus() {
   const active = allBrowserManagers().map((manager) => manager.status()).find((status) => status.open);
   return active || { activeAccountId: null, open: false };
+}
+
+function allWorkspaceLibraries() {
+  return workspaceStore.list().map((workspace) => {
+    const store = workspace.id === workspaceStore.activeId()
+      ? libraryStore : new LibraryStore(app.getPath('userData'), workspace.id);
+    store.initialize();
+    return { workspace, store };
+  });
 }
 
 async function rebuildWorkspaceRuntime() {
@@ -240,12 +251,73 @@ function registerIpc() {
   ipcMain.handle('feishu-browser:detect', () => feishuBrowserManager.detect(workspaceStore.active().sheetUrl));
   ipcMain.handle('feishu-browser:close', () => feishuBrowserManager.close());
   ipcMain.handle('library:paths', () => libraryStore.paths());
-  ipcMain.handle('library:list-products', (_event, workspaceId) => {
+  ipcMain.handle('library:list-products', (_event, workspaceId, schemeId = 'default') => {
     const workspace = workspaceStore.get(String(workspaceId || workspaceStore.activeId()));
     const store = workspace.id === workspaceStore.activeId()
       ? libraryStore : new LibraryStore(app.getPath('userData'), workspace.id);
     store.initialize();
-    return { workspace, items: store.listProducts() };
+    return { workspace, items: store.listProducts(String(schemeId || 'default')), schemes: store.listSchemes() };
+  });
+  ipcMain.handle('library:schemes', () => ({
+    items: libraryStore.listSchemes(),
+    effective: libraryStore.resolveScheme(new Date().toISOString().slice(0, 10), 'auto')
+  }));
+  ipcMain.handle('library:save-scheme', (_event, input = {}) => {
+    const workspaceIds = new Set((input.workspaceIds || workspaceStore.list().map((workspace) => workspace.id)).map(String));
+    const sharedInput = { ...input, id: input.id || `scheme-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` };
+    const results = [];
+    for (const { workspace, store } of allWorkspaceLibraries()) {
+      if (workspaceIds.has(workspace.id)) results.push({ workspaceId: workspace.id, ...store.saveScheme(sharedInput) });
+    }
+    return { results, items: libraryStore.listSchemes() };
+  });
+  ipcMain.handle('library:open-scheme', async (_event, schemeId = 'default') => {
+    const directory = libraryStore.schemeDirectory(String(schemeId || 'default'));
+    const result = await shell.openPath(directory);
+    if (result) throw new Error(`打开方案目录失败：${result}`);
+    return directory;
+  });
+  ipcMain.handle('library:inspect-scheme', (_event, schemeId = 'default') => ({
+    schemeId,
+    workspaces: allWorkspaceLibraries().map(({ workspace, store }) => ({ workspace, ...store.inspectScheme(String(schemeId || 'default')) }))
+  }));
+  ipcMain.handle('library:save-batch-template', async () => {
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: '保存批量素材模板', defaultPath: '素材批量导入模板.csv',
+      filters: [{ name: 'CSV 表格', extensions: ['csv'] }]
+    });
+    if (result.canceled || !result.filePath) return null;
+    fs.writeFileSync(result.filePath, templateCsv(workspaceStore.list()), 'utf8');
+    return result.filePath;
+  });
+  ipcMain.handle('library:import-batch', async (_event, schemeId = 'default') => {
+    const selected = await dialog.showOpenDialog(mainWindow, {
+      title: '导入批量素材表', properties: ['openFile'], filters: [{ name: 'CSV 表格', extensions: ['csv'] }]
+    });
+    if (selected.canceled || !selected.filePaths[0]) return null;
+    const groups = parseMaterialRows(fs.readFileSync(selected.filePaths[0], 'utf8'), workspaceStore.list());
+    const workspaceCount = new Set(groups.map((group) => group.workspaceId)).size;
+    const decision = await dialog.showMessageBox(mainWindow, {
+      type: 'question', buttons: ['取消', '合并追加', '覆盖同名产品'], defaultId: 1, cancelId: 0,
+      title: '确认批量写入素材',
+      message: `将写入 ${workspaceCount} 个工作区、${groups.length} 个产品`,
+      detail: '合并追加会保留原内容并去重；覆盖会用表格内容替换同名产品的文案、Tag 和商品短标题。封面不会改动。'
+    });
+    if (decision.response === 0) return null;
+    const mode = decision.response === 2 ? 'replace' : 'append';
+    const libraryMap = new Map(allWorkspaceLibraries().map((item) => [item.workspace.id, item.store]));
+    const snapshots = [];
+    try {
+      for (const group of groups) {
+        const store = libraryMap.get(group.workspaceId);
+        snapshots.push({ store, snapshot: store.captureProduct(group.model, schemeId) });
+        store.saveProduct({ ...group, schemeId, mode, coverPaths: [] });
+      }
+    } catch (error) {
+      for (const item of snapshots.reverse()) item.store.restoreProduct(item.snapshot);
+      throw new Error(`批量素材写入失败，已恢复原有素材：${error.message}`);
+    }
+    return { filePath: selected.filePaths[0], workspaceCount, productCount: groups.length, mode };
   });
   ipcMain.handle('library:choose-covers', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
@@ -265,7 +337,7 @@ function registerIpc() {
       const store = workspaceId === workspaceStore.activeId()
         ? libraryStore : new LibraryStore(app.getPath('userData'), workspaceId);
       store.initialize();
-      return { workspaceId, store, snapshot: store.captureProduct(model) };
+      return { workspaceId, store, snapshot: store.captureProduct(model, input.schemeId || 'default') };
     });
     const results = [];
     try {
@@ -276,9 +348,34 @@ function registerIpc() {
     }
     return { model, results };
   });
+  ipcMain.handle('library:export-package', async (_event, input = {}) => {
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: '导出本地素材包',
+      defaultPath: `短视频素材包-${new Date().toISOString().slice(0, 10)}.svmpack`,
+      filters: [{ name: '短视频素材包', extensions: ['svmpack'] }]
+    });
+    if (result.canceled || !result.filePath) return null;
+    return writePackage(result.filePath, allWorkspaceLibraries(), { ...input, appVersion: app.getVersion() });
+  });
+  ipcMain.handle('library:import-package', async () => {
+    const selected = await dialog.showOpenDialog(mainWindow, {
+      title: '导入本地素材包', properties: ['openFile'],
+      filters: [{ name: '短视频素材包', extensions: ['svmpack'] }]
+    });
+    if (selected.canceled || !selected.filePaths[0]) return null;
+    const summary = packageSummary(selected.filePaths[0]);
+    const confirmed = await dialog.showMessageBox(mainWindow, {
+      type: 'question', buttons: ['取消', '校验并导入'], defaultId: 1, cancelId: 0,
+      title: '确认导入素材包',
+      message: `素材包包含 ${summary.workspaces.length} 个工作区`,
+      detail: `${summary.workspaces.map((item) => `${item.name}：${item.fileCount}个文件`).join('\n')}\n\n只导入素材库和素材方案；不会导入飞书链接、登录资料、Chrome Profile、日志、缓存或发布计划。同名素材文件将覆盖，失败会自动恢复。`
+    });
+    if (confirmed.response !== 1) return null;
+    return { ...importPackage(selected.filePaths[0], allWorkspaceLibraries()), summary };
+  });
   ipcMain.handle('library:open', async (_event, key) => {
     const paths = libraryStore.paths();
-    if (!['covers', 'copy', 'tags', 'shortTitles', 'productConfig', 'cache', 'logs', 'records', 'root'].includes(String(key))) throw new Error('不允许打开这个目录');
+    if (!['covers', 'copy', 'tags', 'shortTitles', 'productConfig', 'cache', 'logs', 'records', 'root', 'materialCenter', 'schemes', 'activitySchemes', 'currentScheme'].includes(String(key))) throw new Error('不允许打开这个目录');
     const result = await shell.openPath(paths[key]);
     if (result) throw new Error(`打开目录失败：${result}`);
     return paths[key];
@@ -318,10 +415,11 @@ function registerIpc() {
   ipcMain.handle('plan:create', async (_event, input) => {
     const date = typeof input === 'string' ? input : input?.date;
     const filterMode = typeof input === 'object' ? input?.filterMode : 'auto';
+    const schemeId = typeof input === 'object' ? input?.schemeId : 'auto';
     const startedAt = Date.now();
     startGuard('pull');
     try {
-      const plan = await planService.create(String(date || ''), { filterMode });
+      const plan = await planService.create(String(date || ''), { filterMode, schemeId });
       const durationMs = Date.now() - startedAt;
       durationStore.record('pull', plan.items.length, durationMs);
       automationGuard.stop();

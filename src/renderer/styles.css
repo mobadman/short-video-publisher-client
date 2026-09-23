@@ -323,19 +323,23 @@ pre { padding: 16px; overflow: auto; border-radius: 10px; color: #dce8e2; backgr
 .plan-panel { padding: 0; overflow: hidden; }
 .plan-toolbar { min-height: 78px; padding: 14px 17px; display: grid; grid-template-columns: minmax(220px,1fr) max-content; align-items: center; gap: 18px; border-bottom: 1px solid var(--line); }
 .plan-toolbar .panel-note { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.plan-toolbar-actions { display: grid; grid-template-columns: 218px max-content max-content; align-items: center; gap: 8px; }
+.plan-toolbar-actions { display: grid; grid-template-columns: 218px 166px max-content max-content; align-items: center; gap: 8px; }
 .plan-toolbar-actions button { min-height: 42px; padding-inline: 14px; white-space: nowrap; }
 .date-control { width: 218px; height: 42px; display: flex; align-items: center; overflow: visible; border: 1px solid var(--line-strong); border-radius: 9px; background: white; cursor: pointer; }
 .date-control:focus-within { border-color: #72949a; box-shadow: 0 0 0 3px rgba(49,92,98,.1); }
 .date-control span { padding-left: 11px; color: #5f6c74; font-size: 11px; font-weight: 750; white-space: nowrap; }
 .date-control input { min-width: 0; width: 152px; height: 40px; padding: 0 9px; border: 0; outline: 0; color: var(--ink); background: transparent; cursor: pointer; font-size: 12px; font-variant-numeric: tabular-nums; }
 .date-control input::-webkit-calendar-picker-indicator { padding: 7px; cursor: pointer; }
+.scheme-control { width: 166px; height: 42px; display: flex; align-items: center; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 9px; background: white; }
+.scheme-control span { padding-left: 10px; flex: none; color: #5f6c74; font-size: 10px; font-weight: 750; white-space: nowrap; }
+.scheme-control select { min-width: 0; width: 100%; height: 40px; padding: 0 25px 0 7px; border: 0; outline: 0; color: var(--ink); background: white; font-size: 11px; }
+.scheme-control:focus-within { border-color: #72949a; box-shadow: 0 0 0 3px rgba(49,92,98,.1); }
 .plan-secondary-toolbar { min-height: 47px; padding: 8px 17px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); background: #fbfcfc; }
 .plan-secondary-toolbar > span { color: var(--muted); font-size: 10px; }
 .plan-secondary-toolbar > div { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 3px; }
 .plan-secondary-toolbar button { min-height: 31px; padding: 0 9px; font-size: 10px; }
 .plan-secondary-toolbar .batch-review-button { color: #fff; background: var(--accent); white-space: nowrap; }
-.compact-table-wrap { max-height: 400px; overflow: auto; }
+.compact-table-wrap { max-height: max(260px, calc(100vh - 600px)); overflow: auto; }
 .compact-plan-table { min-width: 930px; border-collapse: collapse; font-size: 11px; }
 .compact-plan-table th,.compact-plan-table td { position: static; max-width: none; padding: 9px 12px; vertical-align: middle; background: inherit; box-shadow: none; }
 .compact-plan-table th { position: sticky; top: 0; z-index: 2; height: 37px; color: #64727b; background: #f2f5f6; font-size: 10px; }
@@ -361,6 +365,17 @@ pre { padding: 16px; overflow: auto; border-radius: 10px; color: #dce8e2; backgr
 
 /* 4.1.0 素材库与商城首帧策略 */
 .library-layout { display: grid; grid-template-columns: minmax(420px,1.1fr) minmax(330px,.9fr); gap: 12px; align-items: start; }
+.scheme-manager { margin-bottom: 12px !important; }
+.scheme-form { display: grid; grid-template-columns: minmax(190px,1fr) 145px 145px minmax(210px,.9fr) minmax(150px,.7fr) max-content; align-items: end; gap: 10px; margin-top: 13px; }
+.scheme-form .field { margin-top: 0; }
+.scheme-form button { min-height: 40px; }
+.scheme-actions { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.scheme-actions .field { width: min(310px, 100%); margin-top: 0; }
+.scheme-actions .button-row { margin-top: 0; justify-content: flex-end; }
+.scheme-inspection { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-top: 12px; }
+.scheme-inspection article { display: grid; gap: 5px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
+.scheme-inspection span,.scheme-inspection small { color: var(--muted); font-size: 10px; line-height: 1.45; }
+.scheme-inspection .warning-text { color: #8d6021; }
 .library-form-panel,.library-catalog-panel { margin: 0; }
 .workspace-targets { margin: 15px 0 0; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
 .workspace-targets legend { padding: 0 6px; color: #46525b; font-size: 11px; font-weight: 740; }
@@ -372,6 +387,7 @@ pre { padding: 16px; overflow: auto; border-radius: 10px; color: #dce8e2; backgr
 .library-save-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-top: 16px; }
 .library-save-row .field { flex: 1; max-width: 240px; }
 .library-filter { margin-top: 16px; }
+.library-catalog-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
 .product-list { max-height: 620px; overflow: auto; padding-right: 3px; }
 .library-product-card { padding: 13px; border: 1px solid var(--line); border-radius: 11px; background: #f8faf9; }
 .library-product-card + .library-product-card { margin-top: 8px; }
@@ -381,6 +397,9 @@ pre { padding: 16px; overflow: auto; border-radius: 10px; color: #dce8e2; backgr
 .library-counts span { padding: 7px 5px; border-radius: 7px; color: #68757d; background: white; font-size: 9px; text-align: center; }
 .cover-mode-options { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 9px; }
 .badge.warning { color: #8d6021; border-color: #efd7ac; background: #fff7e8; }
+.material-package-panel { display: grid; grid-template-columns: minmax(280px,1fr) 250px auto; align-items: center; gap: 16px; }
+.material-package-panel .button-row { margin-top: 0; justify-content: flex-end; }
+.material-package-panel > .panel-note { grid-column: 1 / -1; margin-top: 0; }
 
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid #5f858b; outline-offset: 2px; }
 @media (hover: hover) and (pointer: fine) {
@@ -409,6 +428,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 @media (max-width: 1180px) {
   .plan-toolbar { grid-template-columns: 1fr; gap: 12px; }
   .plan-toolbar-actions { justify-content: end; }
+  .scheme-form { grid-template-columns: 1fr 1fr 1fr; }
+  .scheme-form button { grid-column: 1 / -1; justify-self: end; }
+  .scheme-actions { align-items: stretch; flex-direction: column; }
+  .scheme-actions .field { width: 100%; }
+  .scheme-actions .button-row { justify-content: flex-start; }
+  .material-package-panel { grid-template-columns: 1fr 250px; }
+  .material-package-panel .button-row { grid-column: 1 / -1; }
   .feishu-runtime .runtime-actions { max-width: 275px; flex-wrap: wrap; }
   .workbench-footer { grid-template-columns: minmax(0,1fr) auto; row-gap: 4px; }
   .workbench-footer .operation-status { grid-column: 1 / -1; grid-row: 2; }
@@ -421,7 +447,9 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   .metric-grid { grid-template-columns: 1fr 1fr; }
   .runtime-grid { grid-template-columns: 1fr; }
   .workbench-header { align-items: flex-start; flex-direction: column; }
-  .plan-toolbar-actions { width: 100%; grid-template-columns: minmax(200px,1fr) max-content; justify-content: stretch; }
+  .plan-toolbar-actions { width: 100%; grid-template-columns: minmax(200px,1fr) minmax(150px,.7fr) max-content; justify-content: stretch; }
+  .scheme-control { width: 100%; }
+  .plan-toolbar-actions #clear-cache { grid-column: 3; }
   .plan-toolbar-actions #create-plan-current-filter { grid-column: 1 / -1; }
   .date-control { width: 100%; }
   .date-control input { width: 100%; }
@@ -429,4 +457,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   .workbench-footer { grid-template-columns: 1fr; row-gap: 7px; }
   .workbench-footer .operation-status { grid-column: auto; grid-row: auto; }
   .library-layout { grid-template-columns: 1fr; }
+  .material-package-panel { grid-template-columns: 1fr; }
+  .material-package-panel .button-row { grid-column: auto; justify-content: flex-start; }
 }

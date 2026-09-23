@@ -1,6 +1,6 @@
 const byId = (id) => document.getElementById(id);
 const ui = Object.fromEntries([
-  'global-status','side-workspace-label','workbench-date','accounts-main','accounts-test','settings-accounts','workspace-select','select-workspace','workspace-status','workspace-badge','workspace-platform','sheet-url','save-sheet','open-feishu','detect-feishu','close-feishu','settings-status','settings-state','runtime-ready','readiness-score','readiness-progress','readiness-badge','readiness-detail','metric-estimate-value','metric-download-count','metric-download-value','metric-download-progress','metric-download-meta','metric-publish-count','metric-publish-value','metric-publish-progress','metric-publish-meta','metric-risk','metric-next-time','metric-next-meta','commerce-panel','open-short-titles','resolve-commerce-titles','commerce-status','plan-date','create-plan-current-filter','clear-cache','plan-body','plan-status','plan-summary','batch-confirm','execute-plan','batch-status','pull-estimate','publish-estimate','select-all','select-none','selection-summary','sync-ids','open-published-videos','export-ids','copy-id-table','open-id-records','view-plan-modal','edit-plan-modal','edit-plan-file','edit-plan-category','edit-plan-model','edit-plan-time','edit-plan-body','edit-plan-tags','edit-plan-choose-cover','edit-plan-cover','edit-cover-mode','edit-commerce-fields','edit-product-short-title','edit-product-link','edit-product-original-title','edit-confirm-short-title','edit-save-short-title','save-plan-item','edit-plan-status','library-workspace-badge','library-model','library-safe-name','library-workspace-targets','library-copies','library-tags','library-short-titles','library-choose-covers','library-cover-summary','library-cover-list','library-save-mode','library-save-product','library-form-status','library-refresh','library-workspace-filter','library-product-list','test-platform','test-platform-badge','test-id-tool','choose-video','choose-cover','video-path','cover-path','test-body','body-count','test-tags','scheduled-at','test-confirm','prepare-test','prepare-status','test-resolve-id','test-id-status','watermark-enabled','guard-seconds','save-preferences','preferences-status','close-browser','settings-close-feishu','finish-guide','open-donation','donation-modal','delete-account-modal','delete-account-description','delete-check','delete-account-name','delete-confirm-phrase','confirm-delete-account','delete-account-status'
+  'global-status','side-workspace-label','workbench-date','accounts-main','accounts-test','settings-accounts','workspace-select','select-workspace','workspace-status','workspace-badge','workspace-platform','sheet-url','save-sheet','open-feishu','detect-feishu','close-feishu','settings-status','settings-state','runtime-ready','readiness-score','readiness-progress','readiness-badge','readiness-detail','metric-estimate-value','metric-download-count','metric-download-value','metric-download-progress','metric-download-meta','metric-publish-count','metric-publish-value','metric-publish-progress','metric-publish-meta','metric-risk','metric-next-time','metric-next-meta','commerce-panel','open-short-titles','resolve-commerce-titles','commerce-status','plan-date','plan-scheme','create-plan-current-filter','clear-cache','plan-body','plan-status','plan-summary','batch-confirm','execute-plan','batch-status','pull-estimate','publish-estimate','select-all','select-none','selection-summary','sync-ids','open-published-videos','export-ids','copy-id-table','open-id-records','view-plan-modal','edit-plan-modal','edit-plan-file','edit-plan-category','edit-plan-model','edit-plan-time','edit-plan-body','edit-plan-tags','edit-plan-choose-cover','edit-plan-cover','edit-cover-mode','edit-commerce-fields','edit-product-short-title','edit-product-link','edit-product-original-title','edit-confirm-short-title','edit-save-short-title','save-plan-item','edit-plan-status','library-workspace-badge','library-model','library-safe-name','library-workspace-targets','library-copies','library-tags','library-short-titles','library-choose-covers','library-cover-summary','library-cover-list','library-save-mode','library-save-product','library-form-status','library-refresh','library-workspace-filter','library-scheme','library-scheme-filter','library-effective-scheme','library-product-list','scheme-name','scheme-start','scheme-end','scheme-mode','scheme-source','scheme-current','scheme-save','scheme-open-folder','scheme-import-batch','scheme-check','scheme-download-template','scheme-status','scheme-inspection','package-scope','export-material-package','import-material-package','package-status','test-platform','test-platform-badge','test-id-tool','choose-video','choose-cover','video-path','cover-path','test-body','body-count','test-tags','scheduled-at','test-confirm','prepare-test','prepare-status','test-resolve-id','test-id-status','watermark-enabled','guard-seconds','save-preferences','preferences-status','close-browser','settings-close-feishu','finish-guide','open-donation','donation-modal','delete-account-modal','delete-account-description','delete-check','delete-account-name','delete-confirm-phrase','confirm-delete-account','delete-account-status'
 ].map((id) => [id, byId(id)]));
 let workspaces = [], activeWorkspace = null, accounts = [], browserStatus = {}, settings = {}, feishuStatus = {}, libraryPaths = {}, currentPlan = null, estimates = {};
 let videoPath = null, coverPath = null, busy = false, activePage = 'main';
@@ -11,6 +11,7 @@ let editingCoverPath = null;
 let editingCoverMode = 'library-cover';
 let libraryCoverPaths = [];
 let libraryCatalog = [];
+let librarySchemes = [];
 let operationKind = null;
 
 const stateLabels = {
@@ -36,6 +37,24 @@ function safeModelName(value) {
   return normalized.slice(0, 100);
 }
 
+function effectiveSchemeForDate(date) {
+  return librarySchemes.filter((scheme) => !scheme.builtIn && scheme.enabled !== false
+    && (!scheme.startDate || date >= scheme.startDate)
+    && (!scheme.endDate || date <= scheme.endDate))
+    .sort((left, right) => Number(right.priority || 0) - Number(left.priority || 0)
+      || String(right.updatedAt || '').localeCompare(String(left.updatedAt || '')))[0]
+    || librarySchemes.find((scheme) => scheme.id === 'default');
+}
+
+function updatePlanSchemeLabel() {
+  if (!ui['plan-scheme'] || !librarySchemes.length) return;
+  const previous = ui['plan-scheme'].value || 'auto';
+  const effective = effectiveSchemeForDate(ui['plan-date'].value || '');
+  const autoOption = ui['plan-scheme'].querySelector('option[value="auto"]');
+  if (autoOption) autoOption.textContent = `自动 · ${effective?.name || '常规方案'}`;
+  ui['plan-scheme'].value = previous;
+}
+
 function renderLibraryControls() {
   if (!ui['library-workspace-targets']) return;
   const selectedTargets = new Set([...ui['library-workspace-targets'].querySelectorAll('input:checked')].map((input) => input.value));
@@ -46,6 +65,23 @@ function renderLibraryControls() {
   ui['library-workspace-badge'].textContent = activeWorkspace?.name || '\u5f53\u524d\u5de5\u4f5c\u533a';
   ui['library-cover-summary'].textContent = libraryCoverPaths.length ? `\u5df2\u9009\u62e9 ${libraryCoverPaths.length} \u5f20` : '\u5c1a\u672a\u9009\u62e9';
   ui['library-cover-list'].innerHTML = libraryCoverPaths.map((filePath) => `<span class="file-chip" title="${escapeHtml(filePath)}">${escapeHtml(basename(filePath))}</span>`).join('');
+  const schemeOptions = librarySchemes.map((scheme) => `<option value="${escapeHtml(scheme.id)}">${escapeHtml(scheme.name)}${scheme.code && !scheme.builtIn ? ` · ${escapeHtml(scheme.code)}` : ''}</option>`).join('');
+  const currentInputScheme = ui['library-scheme'].value || 'default';
+  const currentFilterScheme = ui['library-scheme-filter'].value || 'default';
+  const currentManagedScheme = ui['scheme-current'].value || currentFilterScheme;
+  ui['library-scheme'].innerHTML = schemeOptions;
+  ui['library-scheme-filter'].innerHTML = schemeOptions;
+  ui['scheme-current'].innerHTML = schemeOptions;
+  ui['scheme-source'].innerHTML = schemeOptions;
+  if (librarySchemes.some((scheme) => scheme.id === currentInputScheme)) ui['library-scheme'].value = currentInputScheme;
+  if (librarySchemes.some((scheme) => scheme.id === currentFilterScheme)) ui['library-scheme-filter'].value = currentFilterScheme;
+  if (librarySchemes.some((scheme) => scheme.id === currentManagedScheme)) ui['scheme-current'].value = currentManagedScheme;
+  const planSchemeValue = ui['plan-scheme'].value || 'auto';
+  ui['plan-scheme'].innerHTML = `<option value="auto">自动匹配</option>${schemeOptions}`;
+  if (planSchemeValue === 'auto' || librarySchemes.some((scheme) => scheme.id === planSchemeValue)) ui['plan-scheme'].value = planSchemeValue;
+  updatePlanSchemeLabel();
+  ui['library-choose-covers'].disabled = ui['library-scheme'].value !== 'default';
+  if (ui['library-scheme'].value !== 'default') ui['library-cover-summary'].textContent = '活动方案沿用常规封面';
 }
 
 function renderLibraryCatalog() {
@@ -61,7 +97,7 @@ function renderLibraryCatalog() {
     if (!item.coverCount && workspace?.mode !== 'commerce') missing.push('\u5c01\u9762');
     if (!item.shortTitleCount && workspace?.mode === 'commerce') missing.push('\u5546\u54c1\u77ed\u6807\u9898');
     const firstFrame = !item.coverCount && workspace?.mode === 'commerce';
-    const state = missing.length ? `\u7f3a${missing.join('\u3001')}` : firstFrame ? '\u9996\u5e27\u5c01\u9762' : '\u5b8c\u6574';
+    const state = missing.length ? `\u7f3a${missing.join('\u3001')}` : item.inherited ? '继承常规' : firstFrame ? '\u9996\u5e27\u5c01\u9762' : item.overridden ? '活动覆盖' : '\u5b8c\u6574';
     const badgeClass = missing.length ? 'danger-badge' : firstFrame ? 'warning' : 'success';
     return `<article class="library-product-card"><div class="library-product-head"><strong>${escapeHtml(item.model)}</strong><span class="badge ${badgeClass}">${escapeHtml(state)}</span></div><div class="library-counts"><span>\u6587\u6848 ${item.copyCount}</span><span>Tag ${item.tagGroupCount}</span><span>\u5c01\u9762 ${item.coverCount}</span><span>\u77ed\u6807\u9898 ${item.shortTitleCount}</span></div></article>`;
   }).join('');
@@ -70,8 +106,10 @@ function renderLibraryCatalog() {
 async function refreshLibraryProducts() {
   const workspaceId = ui['library-workspace-filter']?.value || activeWorkspace?.id;
   if (!workspaceId) return;
-  const result = await window.publisher.listLibraryProducts(workspaceId);
+  const result = await window.publisher.listLibraryProducts(workspaceId, ui['library-scheme-filter']?.value || 'default');
   libraryCatalog = result.items || [];
+  if (result.schemes?.length) librarySchemes = result.schemes;
+  renderLibraryControls();
   renderLibraryCatalog();
 }
 
@@ -156,7 +194,7 @@ function renderPlan() {
   const completed = currentPlan.items.filter((item) => ['verified','id-resolved'].includes(item.execution?.state)).length;
   const uncertain = currentPlan.items.filter((item) => item.execution?.state === 'uncertain').length;
   const firstFrameCount = selected.filter((item) => item.coverMode === 'video-first-frame').length;
-  ui['plan-summary'].textContent = `${currentPlan.date} · ${currentPlan.items.length}条 · ${completed}条已完成`;
+  ui['plan-summary'].textContent = `${currentPlan.date} · ${currentPlan.items.length}条 · ${completed}条已完成 · 内容方案：${currentPlan.contentScheme?.name || '常规方案'}`;
   ui['selection-summary'].textContent = `本次将执行 ${selected.length} 条${firstFrameCount ? `；${firstFrameCount}条使用视频首帧` : ''}${uncertain ? `；${uncertain}条待人工确认` : ''}`;
   ui['plan-body'].innerHTML = currentPlan.items.map((item) => {
     const state = item.execution?.state || 'pending';
@@ -350,7 +388,7 @@ function render() {
 
 async function refresh() {
   const results = await Promise.allSettled([
-    window.publisher.listWorkspaces(), window.publisher.listAccounts(), window.publisher.getBrowserStatus(), window.publisher.getSettings(), window.publisher.getFeishuBrowserStatus(), window.publisher.getLibraryPaths(), window.publisher.getCurrentPlan(), window.publisher.getDurationEstimates()
+    window.publisher.listWorkspaces(), window.publisher.listAccounts(), window.publisher.getBrowserStatus(), window.publisher.getSettings(), window.publisher.getFeishuBrowserStatus(), window.publisher.getLibraryPaths(), window.publisher.getCurrentPlan(), window.publisher.getDurationEstimates(), window.publisher.listLibrarySchemes()
   ]);
   if (results[0].status === 'rejected') throw results[0].reason;
   workspaces = results[0].value.items;
@@ -363,6 +401,10 @@ async function refresh() {
   libraryPaths = results[5].status === 'fulfilled' ? results[5].value : libraryPaths;
   currentPlan = results[6].status === 'fulfilled' ? results[6].value : { invalid: true, status: 'invalid', statusDetail: results[6].reason?.message || '当前计划读取失败', items: [] };
   estimates = results[7].status === 'fulfilled' ? results[7].value : estimates;
+  if (results[8].status === 'fulfilled') {
+    librarySchemes = results[8].value.items || [];
+    ui['library-effective-scheme'].textContent = `当前：${results[8].value.effective?.name || '常规方案'}`;
+  }
   const nonAccountErrors = results.slice(1).filter((result) => result.status === 'rejected');
   if (nonAccountErrors.length) setStatus(`账号模块已正常加载；另有${nonAccountErrors.length}个模块初始化失败，请查看对应区域。`, 'error');
   ui['sheet-url'].value = activeWorkspace?.sheetUrl || '';
@@ -446,8 +488,50 @@ ui['library-choose-covers'].addEventListener('click', async () => {
     ui['library-form-status'].className = 'error';
   }
 });
+ui['library-scheme'].addEventListener('change', () => {
+  const activityScheme = ui['library-scheme'].value !== 'default';
+  ui['library-choose-covers'].disabled = activityScheme;
+  if (activityScheme) {
+    libraryCoverPaths = [];
+    ui['library-cover-summary'].textContent = '活动方案沿用常规封面';
+    ui['library-cover-list'].innerHTML = '';
+  } else renderLibraryControls();
+});
 ui['library-workspace-filter'].addEventListener('change', () => refreshLibraryProducts().catch((error) => setStatus(error.message, 'error')));
+ui['library-scheme-filter'].addEventListener('change', () => {
+  ui['scheme-current'].value = ui['library-scheme-filter'].value;
+  ui['scheme-inspection'].hidden = true;
+  refreshLibraryProducts().catch((error) => setStatus(error.message, 'error'));
+});
 ui['library-refresh'].addEventListener('click', () => refreshLibraryProducts().catch((error) => setStatus(error.message, 'error')));
+ui['scheme-mode'].addEventListener('change', () => {
+  ui['scheme-source'].disabled = ui['scheme-mode'].value !== 'copy';
+});
+ui['scheme-current'].addEventListener('change', () => {
+  ui['library-scheme-filter'].value = ui['scheme-current'].value;
+  ui['library-scheme'].value = ui['scheme-current'].value;
+  ui['scheme-inspection'].hidden = true;
+  refreshLibraryProducts().catch((error) => setStatus(error.message, 'error'));
+});
+ui['scheme-open-folder'].addEventListener('click', () => run(async () => {
+  const directory = await window.publisher.openLibraryScheme(ui['scheme-current'].value);
+  ui['scheme-status'].textContent = `已打开：${directory}`;
+}, '方案文件夹已打开。', ui['scheme-status']));
+ui['scheme-download-template'].addEventListener('click', () => run(async () => {
+  const filePath = await window.publisher.saveMaterialBatchTemplate();
+  ui['scheme-status'].textContent = filePath ? `批量模板已保存：${filePath}` : '已取消保存模板。';
+}, '批量素材模板已生成。', ui['scheme-status']));
+ui['scheme-import-batch'].addEventListener('click', () => run(async () => {
+  const result = await window.publisher.importMaterialBatch(ui['scheme-current'].value);
+  if (!result) { ui['scheme-status'].textContent = '已取消批量导入。'; return; }
+  ui['scheme-status'].textContent = `已向${result.workspaceCount}个工作区写入${result.productCount}个产品，${result.mode === 'replace' ? '覆盖同名内容' : '合并并去重'}。`;
+  await refreshLibraryProducts();
+}, '批量素材导入完成。', ui['scheme-status']));
+ui['scheme-check'].addEventListener('click', () => run(async () => {
+  const result = await window.publisher.inspectLibraryScheme(ui['scheme-current'].value);
+  ui['scheme-inspection'].hidden = false;
+  ui['scheme-inspection'].innerHTML = result.workspaces.map((item) => `<article><strong>${escapeHtml(item.workspace.name)}</strong><span>${item.overridden} 个方案覆盖产品 · ${item.products} 个可见产品</span><small class="${item.issues.length ? 'warning-text' : 'success'}">${item.issues.length ? `${item.issues.length} 项需检查：${escapeHtml(item.issues.slice(0, 3).join('；'))}${item.issues.length > 3 ? '…' : ''}` : '未发现结构问题'}</small></article>`).join('');
+}, '素材检查完成。', ui['scheme-status']));
 ui['library-save-product'].addEventListener('click', () => {
   const workspaceIds = [...ui['library-workspace-targets'].querySelectorAll('input:checked')].map((input) => input.value);
   const mode = ui['library-save-mode'].value;
@@ -460,6 +544,7 @@ ui['library-save-product'].addEventListener('click', () => {
       tagGroups: ui['library-tags'].value,
       shortTitles: ui['library-short-titles'].value,
       coverPaths: libraryCoverPaths,
+      schemeId: ui['library-scheme'].value,
       mode
     });
     const names = result.results.map((item) => workspaces.find((workspace) => workspace.id === item.workspaceId)?.name || item.workspaceId);
@@ -468,6 +553,45 @@ ui['library-save-product'].addEventListener('click', () => {
     await refreshLibraryProducts();
   }, '\u4ea7\u54c1\u7d20\u6750\u5df2\u5b89\u5168\u5199\u5165\u672c\u5730\u7d20\u6750\u5e93\u3002', ui['library-form-status']);
 });
+ui['scheme-save'].addEventListener('click', () => run(async () => {
+  const result = await window.publisher.saveLibraryScheme({
+    name: ui['scheme-name'].value,
+    startDate: ui['scheme-start'].value,
+    endDate: ui['scheme-end'].value,
+    mode: ui['scheme-mode'].value,
+    sourceSchemeId: ui['scheme-mode'].value === 'copy' ? ui['scheme-source'].value : '',
+    workspaceIds: workspaces.map((workspace) => workspace.id)
+  });
+  librarySchemes = result.items || librarySchemes;
+  const createdId = result.results[0]?.id;
+  renderLibraryControls();
+  if (createdId) {
+    ui['scheme-current'].value = createdId;
+    ui['library-scheme'].value = createdId;
+    ui['library-scheme-filter'].value = createdId;
+  }
+  ui['scheme-status'].textContent = `已建立“${ui['scheme-name'].value.trim()}”及三个工作区目录，到期后自动恢复常规方案。`;
+  ui['scheme-status'].className = 'panel-note success';
+}, '活动素材方案已建立。', ui['scheme-status']));
+ui['export-material-package'].addEventListener('click', () => run(async () => {
+  const scope = ui['package-scope'].value;
+  const input = {};
+  if (scope !== 'all') input.workspaceIds = [activeWorkspace.id];
+  if (scope === 'current-scheme') input.schemeIds = [ui['library-scheme-filter'].value];
+  const result = await window.publisher.exportMaterialPackage(input);
+  if (!result) { ui['package-status'].textContent = '已取消导出。'; return; }
+  ui['package-status'].textContent = `已导出${result.workspaceCount}个工作区、${result.fileCount}个素材文件：${result.filePath}`;
+  ui['package-status'].className = 'panel-note success';
+}, '素材包导出完成。', ui['package-status']));
+ui['import-material-package'].addEventListener('click', () => run(async () => {
+  const result = await window.publisher.importMaterialPackage();
+  if (!result) { ui['package-status'].textContent = '已取消导入。'; return; }
+  ui['package-status'].textContent = `已导入${result.workspaceCount}个工作区、${result.fileCount}个素材文件。原有非同名素材保持不变。`;
+  ui['package-status'].className = 'panel-note success';
+  const schemes = await window.publisher.listLibrarySchemes();
+  librarySchemes = schemes.items || [];
+  await refreshLibraryProducts();
+}, '素材包校验并导入完成。', ui['package-status']));
 ui['confirm-delete-account'].addEventListener('click', () => {
   const accountId = pendingDeleteAccountId;
   if (!accountId || ui['confirm-delete-account'].disabled) return;
@@ -504,10 +628,11 @@ ui['test-platform'].addEventListener('change', () => {
   ui['test-confirm'].checked = false;
   render();
 });
+ui['plan-date'].addEventListener('change', updatePlanSchemeLabel);
 
 function createPlan() {
   if (!ui['plan-date'].value) { ui['plan-status'].textContent = '请先选择发布日期'; ui['plan-status'].className = 'panel-note error'; return; }
-  run(async () => { ui['plan-status'].textContent = '正在使用当前飞书筛选结果拉取…'; currentPlan = await window.publisher.createPlan(ui['plan-date'].value, 'current'); ui['batch-confirm'].checked = false; }, '计划已经生成，请逐行人工检查。', ui['plan-status'], 'pull');
+  run(async () => { ui['plan-status'].textContent = '正在使用当前飞书筛选结果拉取…'; currentPlan = await window.publisher.createPlan(ui['plan-date'].value, 'current', ui['plan-scheme'].value); ui['batch-confirm'].checked = false; }, '计划已经生成，请逐行人工检查。', ui['plan-status'], 'pull');
 }
 ui['create-plan-current-filter'].addEventListener('click', createPlan);
 document.querySelector('.date-control').addEventListener('click', (event) => {

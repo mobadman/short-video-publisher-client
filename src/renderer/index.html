@@ -10,7 +10,7 @@
 <body>
   <div class="app-shell">
     <aside>
-      <div class="brand"><span class="brand-icon"><img src="assets/app-icon.png" alt=""></span><span class="brand-copy"><strong>短视频发布助手</strong><small>4.1.5 · 本地工作台</small></span></div>
+      <div class="brand"><span class="brand-icon"><img src="assets/app-icon.png" alt=""></span><span class="brand-copy"><strong>短视频发布助手</strong><small>4.2.1 · 本地工作台</small></span></div>
       <nav aria-label="主要导航">
         <button data-page="main" class="nav-button active"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 10.5 12 4l8 6.5v8a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5z"/><path d="M9.5 20v-6h5v6"/></svg></span><span>发布工作台</span></button>
         <button data-page="test" class="nav-button"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 3h6"/><path d="M10 3v5l-5.5 9.3A2.4 2.4 0 0 0 6.6 21h10.8a2.4 2.4 0 0 0 2.1-3.7L14 8V3"/><path d="M7.5 16h9"/></svg></span><span>测试工具</span></button>
@@ -32,11 +32,11 @@
         </section>
         <div class="runtime-grid">
           <section class="panel runtime-panel"><div class="flow-section-head"><span class="step-number">1</span><h2>运行环境</h2><span id="runtime-ready" class="badge">正在检查</span></div><div id="accounts-main" class="runtime-list" aria-live="polite"></div><div class="runtime-row feishu-runtime"><span class="runtime-avatar feishu">飞</span><div class="runtime-copy"><strong>飞书数据源</strong><label><span class="sr-only">飞书电子表格链接</span><input id="sheet-url" type="url" aria-label="飞书电子表格链接" placeholder="飞书表格或知识库表格链接"></label><small id="settings-status">保存链接并打开专用 Chrome 检测登录</small></div><div class="runtime-actions"><span id="settings-state" class="badge"></span><button id="save-sheet" class="quiet">保存链接</button><button id="open-feishu" class="quiet">打开飞书 Chrome</button><button id="detect-feishu" class="secondary">检测登录</button><button id="close-feishu" class="quiet">关闭</button></div></div></section>
-          <section class="panel readiness-panel"><div class="flow-section-head"><span class="step-number">2</span><h2>今日准备度</h2><span id="readiness-badge" class="badge">等待计划</span></div><div class="readiness-value"><strong id="readiness-score">0 / 0</strong><span>检查项通过</span></div><div class="metric-progress"><i id="readiness-progress"></i></div><p id="readiness-detail" class="panel-note">生成计划后汇总素材、内容和商品配置问题。</p></section>
+          <section class="panel readiness-panel"><div class="flow-section-head"><span class="step-number">2</span><h2>发布准备</h2><span id="readiness-badge" class="badge">等待计划</span></div><div class="readiness-value"><strong id="readiness-score">0 / 0</strong><span>检查项通过</span></div><div class="metric-progress"><i id="readiness-progress"></i></div><p id="readiness-detail" class="panel-note">生成计划后汇总素材、内容和商品配置问题。</p></section>
         </div>
         <section id="commerce-panel" class="panel commerce-strip" hidden><div><strong>商城商品配置</strong><span>商品链接只读自飞书；短标题缺失时读取平台原始标题并人工确认。</span></div><button id="resolve-commerce-titles" class="secondary">读取缺失短标题</button><span id="commerce-status"></span></section>
         <section class="panel plan-panel">
-          <div class="plan-toolbar"><div class="flow-section-head"><span class="step-number">3</span><div><h2>生成与复核计划</h2><p id="plan-status" class="panel-note">尚未生成计划。</p></div></div><div class="plan-toolbar-actions"><label class="date-control"><span>发布日期</span><input id="plan-date" type="date" aria-label="发布日期"></label><button id="clear-cache" class="secondary">清空下载缓存</button><button id="create-plan-current-filter">重新拉取当前筛选</button></div></div>
+          <div class="plan-toolbar"><div class="flow-section-head"><span class="step-number">3</span><div><h2>发布计划</h2><p id="plan-status" class="panel-note">尚未生成计划。</p></div></div><div class="plan-toolbar-actions"><label class="date-control"><span>发布日期</span><input id="plan-date" type="date" aria-label="发布日期"></label><label class="scheme-control"><span>内容方案</span><select id="plan-scheme" aria-label="内容方案"><option value="auto">自动匹配</option></select></label><button id="clear-cache" class="secondary">清空下载缓存</button><button id="create-plan-current-filter">重新拉取当前筛选</button></div></div>
           <div class="plan-secondary-toolbar"><span id="plan-summary"></span><div><button id="select-all" class="quiet">全选可发布项</button><button id="select-none" class="quiet">取消全选</button><span class="toolbar-divider" aria-hidden="true"></span><button id="sync-ids" class="quiet">同步视频 ID</button><button id="open-published-videos" class="batch-review-button" title="同步 ID 后，在当前发布账号的 Chrome 中打开本批次视频">检查本批次视频</button><button id="export-ids" class="quiet">更新 ID 记录</button><button id="copy-id-table" class="quiet">复制 ID 表格</button><button id="open-id-records" class="secondary">ID 记录</button></div></div>
           <div class="compact-table-wrap"><table class="compact-plan-table"><thead><tr><th>选择</th><th>匹配素材</th><th>品类 / 型号</th><th>排期</th><th>检查结果</th><th>执行状态</th><th>操作</th></tr></thead><tbody id="plan-body"><tr><td colspan="7">等待生成计划</td></tr></tbody></table></div>
           <div class="plan-table-footer"><span id="selection-summary"></span><span>“查看”包含飞书实际行、AI声明及全部匹配内容；“编辑”用于修正计划。</span></div>
@@ -58,20 +58,19 @@
         <section class="panel guide-block"><h2>软件如何工作</h2><p>短视频批量发布助手以“发布工作区”隔离不同平台和账号。每个工作区分别保存飞书、发布账号、表格链接和本地素材库。软件从对应飞书表格复制只读数据，逐个下载当天附件，再按产品型号匹配封面、文案和 Tag；商城号还会读取【商品链接】列并匹配商品短标题。整个流程不使用生成式 AI，也不写入飞书。</p></section>
         <section class="panel guide-block"><h2>飞书表格需要准备什么</h2><div class="guide-grid"><div><strong>必需列</strong><p>【素材链接】【产品类目】【产品型号】【发布时间】。表头文字需与设置一致。</p></div><div><strong>可选列</strong><p>【允许发布】存在时，只有填写“是、允许、可发布、发布、true、1、yes、√”的行会进入计划。</p></div><div><strong>素材链接</strong><p>使用飞书附件或可下载的 HTTPS 链接；登录账号必须拥有表格查看和附件下载权限。</p></div><div><strong>发布时间</strong><p>人工填写希望发布的日期。软件只拉取所选日期，具体时刻按排期规则自动生成。</p></div></div></section>
         <section class="panel guide-block"><h2>本地素材库结构</h2><pre>本地素材库/
-  封面库/产品型号/*.jpg
-  文案库/产品型号.txt
-  Tag库/产品型号.txt
-  商品短标题库/产品型号.txt（仅商城号必需）
-  下载缓存/
-  发布日志/</pre><p>文案和 Tag 文件每行一个方案；Tag 用逗号分隔，不必写 #。产品型号必须与飞书单元格一致。</p><button data-library="root">打开并准备素材库</button></section>
+  素材中心/共享素材/平台/封面库/产品型号/*.jpg
+  素材中心/方案库/常规方案/平台/文案库/产品型号.txt
+  素材中心/方案库/活动方案/方案名称/平台/Tag库/产品型号.txt
+  工作区/平台/本地素材库/下载缓存与发布日志</pre><p>活动方案只需保存变化内容；缺失内容自动继承常规方案。产品型号必须与飞书单元格一致。</p><button data-library="root">打开素材中心</button></section>
         <section class="panel guide-block"><h2>日常操作步骤</h2><ol><li>先选择发布工作区。</li><li>保存飞书表格链接，打开专用 Chrome 登录飞书并检测。</li><li>打开当前发布账号，首次扫码后检测并人工核对。</li><li>商城号逐条检查商品链接与短标题。</li><li>复核计划后发布已勾选项；中断后可续发未完成项。</li></ol><div class="notice"><strong>注意事项</strong><span>当前内部版本已关闭新手指引入口，本段仅保留为开发参考。</span></div><button id="finish-guide">准备完成，进入主工作台</button></section>
       </section>
       <section class="page library-page" data-page-panel="library">
         <header class="page-header"><div><p class="eyebrow">Local material library</p><h1>素材库</h1><p>按产品型号录入发布素材。保存后沿用现有匹配链路，不会自动改写已经生成的计划。</p></div><span id="library-workspace-badge" class="badge">当前工作区</span></header>
+        <section class="panel scheme-manager"><div class="section-head"><div><p class="eyebrow">Content schemes</p><h2>素材方案</h2><p class="panel-note">按方案集中管理三个发布工作区；活动方案缺失内容自动继承常规方案，封面始终共用。</p></div><span id="library-effective-scheme" class="badge">常规方案</span></div><div class="scheme-form"><label class="field"><span>方案名称</span><input id="scheme-name" placeholder="例如：2026双十一"></label><label class="field"><span>开始日期</span><input id="scheme-start" type="date"></label><label class="field"><span>结束日期</span><input id="scheme-end" type="date"></label><label class="field"><span>建立方式</span><select id="scheme-mode"><option value="inherit">继承常规方案，只放变化内容</option><option value="copy">复制已有方案</option><option value="blank">建立空白方案</option></select></label><label class="field"><span>复制来源</span><select id="scheme-source" disabled><option value="default">常规方案</option></select></label><button id="scheme-save">新建活动方案</button></div><div class="scheme-actions"><label class="field compact"><span>当前维护方案</span><select id="scheme-current"><option value="default">常规方案</option></select></label><div class="button-row"><button id="scheme-open-folder">打开方案文件夹</button><button id="scheme-import-batch" class="secondary">批量导入</button><button id="scheme-check" class="secondary">检查素材</button><button id="scheme-download-template" class="quiet">下载 CSV 模板</button></div></div><p id="scheme-status" class="panel-note">创建方案后会立即生成中文目录，不需要先保存单条素材。</p><div id="scheme-inspection" class="scheme-inspection" hidden></div></section>
         <div class="library-layout">
           <section class="panel library-form-panel">
             <div class="section-head"><div><p class="eyebrow">Add or update</p><h2>新增产品素材</h2></div><span class="badge">追加时自动去重</span></div>
-            <label class="field"><span>产品型号</span><input id="library-model" autocomplete="off" placeholder="必须与飞书中的产品型号一致"><small id="library-safe-name">用于生成本地文件名</small></label>
+            <label class="field"><span>写入方案</span><select id="library-scheme"><option value="default">常规方案</option></select><small>活动方案只覆盖文案、Tag 和商品短标题，封面继续共用。</small></label><label class="field"><span>产品型号</span><input id="library-model" autocomplete="off" placeholder="必须与飞书中的产品型号一致"><small id="library-safe-name">用于生成本地文件名</small></label>
             <fieldset class="workspace-targets"><legend>保存到工作区</legend><div id="library-workspace-targets"></div></fieldset>
             <label class="field"><span>文案方案</span><textarea id="library-copies" rows="5" placeholder="每行一条文案"></textarea><small>空行和重复文案会被忽略。</small></label>
             <label class="field"><span>Tag 方案</span><textarea id="library-tags" rows="4" placeholder="每行一组，组内用逗号分隔，最多 5 个"></textarea></label>
@@ -82,10 +81,11 @@
           </section>
           <section class="panel library-catalog-panel">
             <div class="section-head"><div><p class="eyebrow">Current workspace</p><h2>已有产品</h2></div><button id="library-refresh" class="secondary">刷新</button></div>
-            <label class="field library-filter"><span>查看工作区</span><select id="library-workspace-filter"></select></label>
+            <div class="library-catalog-filters"><label class="field library-filter"><span>查看工作区</span><select id="library-workspace-filter"></select></label><label class="field library-filter"><span>查看方案</span><select id="library-scheme-filter"><option value="default">常规方案</option></select></label></div>
             <div id="library-product-list" class="product-list"><p class="panel-note">正在读取素材库…</p></div>
           </section>
         </div>
+        <section class="panel material-package-panel"><div><p class="eyebrow">Portable package</p><h2>素材包导入与导出</h2><p class="panel-note">只包含封面、文案、Tag、商品短标题和素材方案；不包含飞书链接、登录态、Chrome Profile、日志、缓存、计划和本机路径。</p></div><label class="field compact"><span>导出范围</span><select id="package-scope"><option value="all">全部工作区与全部方案</option><option value="current">当前工作区与全部方案</option><option value="current-scheme">当前工作区与当前方案</option></select></label><div class="button-row"><button id="export-material-package" class="secondary">导出素材包</button><button id="import-material-package">导入素材包</button></div><p id="package-status" class="panel-note"></p></section>
       </section>
       <section class="page" data-page-panel="settings">
         <header class="page-header"><div><p class="eyebrow">本地管理</p><h1>设置</h1><p>设置与登录资料仅保存在本机，不会上传。</p></div></header>

@@ -9,7 +9,7 @@ const { _electron: electron } = require('playwright');
   const executablePath = process.argv[2] || process.env.SMOKE_EXECUTABLE || undefined;
   const smokeUserData = fs.mkdtempSync(path.join(os.tmpdir(), 'douyin-publisher-ui-smoke-'));
   const application = await electron.launch({
-    args: ['.', `--user-data-dir=${smokeUserData}`],
+    args: ['.', `--user-data-dir=${smokeUserData}`, '--disable-gpu', '--disable-gpu-compositing'],
     cwd: root,
     executablePath,
     env: { ...process.env, SMOKE_WINDOW_WIDTH: '1080', SMOKE_WINDOW_HEIGHT: '720' }

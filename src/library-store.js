@@ -5,6 +5,13 @@ const { normalizeTags } = require('./test-publish');
 const { validateShortTitle } = require('./commerce-product-title');
 
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png']);
+const DEFAULT_SCHEME_ID = 'default';
+const PLATFORM_FOLDERS = {
+  'douyin-commerce': '抖音商城',
+  'douyin-standard': '抖音普通',
+  'wechat-channels': '微信视频号'
+};
+const CONTENT_DIRECTORIES = ['文案库', 'Tag库', '商品短标题库'];
 
 function safeName(value, fallback) {
   const normalized = String(value || '').trim().replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/g, '');
@@ -31,6 +38,37 @@ function fileHash(filePath) {
   return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
 }
 
+function validDate(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
+}
+
+function seededRandom(seedText) {
+  let state = crypto.createHash('sha256').update(String(seedText)).digest().readUInt32LE(0) || 1;
+  return () => {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    return (state >>> 0) / 4294967296;
+  };
+}
+
+function shuffledIndex(length, ordinal, seedText) {
+  if (length <= 1) return 0;
+  const position = Math.max(0, Number(ordinal) || 0);
+  const cycle = Math.floor(position / length);
+  const indexes = Array.from({ length }, (_, index) => index);
+  const random = seededRandom(`${seedText}|${cycle}`);
+  for (let index = indexes.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(random() * (index + 1));
+    [indexes[index], indexes[swap]] = [indexes[swap], indexes[index]];
+  }
+  if (cycle > 0) {
+    const previousLast = shuffledIndex(length, cycle * length - 1, seedText);
+    if (indexes[0] === previousLast) [indexes[0], indexes[1]] = [indexes[1], indexes[0]];
+  }
+  return indexes[position % length];
+}
+
 function validateImageFile(filePath) {
   const header = Buffer.alloc(8);
   const descriptor = fs.openSync(filePath, 'r');
@@ -52,17 +90,63 @@ function copyDirectory(source, target) {
   }
 }
 
+function copyTreeMissing(source, target) {
+  if (!fs.existsSync(source)) return { files: 0, bytes: 0 };
+  const sourceRoot = path.resolve(source);
+  const targetRoot = path.resolve(target);
+  let files = 0;
+  let bytes = 0;
+  const walk = (current, destination) => {
+    fs.mkdirSync(destination, { recursive: true });
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const from = path.join(current, entry.name);
+      const to = path.join(destination, entry.name);
+      if (entry.isSymbolicLink()) throw new Error(`素材目录中存在链接文件，已停止迁移：${from}`);
+      if (entry.isDirectory()) walk(from, to);
+      else if (entry.isFile() && !fs.existsSync(to)) {
+        const relative = path.relative(sourceRoot, from);
+        const resolved = path.resolve(targetRoot, relative);
+        if (path.relative(targetRoot, resolved).startsWith('..')) throw new Error(`素材迁移路径越界：${from}`);
+        fs.mkdirSync(path.dirname(resolved), { recursive: true });
+        fs.copyFileSync(from, resolved);
+        const size = fs.statSync(from).size;
+        if (fileHash(from) !== fileHash(resolved)) throw new Error(`素材迁移校验失败：${from}`);
+        files += 1;
+        bytes += size;
+      }
+    }
+  };
+  walk(sourceRoot, targetRoot);
+  return { files, bytes };
+}
+
+function schemeDirectoryName(name, code) {
+  return `${safeName(name, '未命名方案')}__${safeName(code, 'S000')}`;
+}
+
 class LibraryStore {
   constructor(dataRoot, workspaceId = '') {
+    this.dataRoot = dataRoot;
     this.workspaceId = String(workspaceId || '').trim();
+    this.platformFolder = PLATFORM_FOLDERS[this.workspaceId] || safeName(this.workspaceId, '默认工作区');
     this.root = this.workspaceId
       ? path.join(dataRoot, '工作区', safeName(this.workspaceId, 'default'), '本地素材库')
       : path.join(dataRoot, '本地素材库');
-    this.coversRoot = path.join(this.root, '封面库');
-    this.copyRoot = path.join(this.root, '文案库');
-    this.tagsRoot = path.join(this.root, 'Tag库');
-    this.shortTitlesRoot = path.join(this.root, '商品短标题库');
+    this.legacyRoot = this.root;
+    this.materialCenterRoot = path.join(dataRoot, '素材中心');
+    this.sharedRoot = path.join(this.materialCenterRoot, '共享素材', this.platformFolder);
+    this.schemeLibraryRoot = path.join(this.materialCenterRoot, '方案库');
+    this.defaultSchemeRoot = path.join(this.schemeLibraryRoot, '常规方案', this.platformFolder);
+    this.activitySchemesRoot = path.join(this.schemeLibraryRoot, '活动方案');
+    this.coversRoot = path.join(this.sharedRoot, '封面库');
+    this.copyRoot = path.join(this.defaultSchemeRoot, '文案库');
+    this.tagsRoot = path.join(this.defaultSchemeRoot, 'Tag库');
+    this.shortTitlesRoot = path.join(this.defaultSchemeRoot, '商品短标题库');
     this.productConfigRoot = path.join(this.root, '商品配置');
+    this.legacySchemesRoot = path.join(this.root, '素材方案');
+    this.schemesRoot = this.schemeLibraryRoot;
+    this.schemesFile = path.join(this.schemeLibraryRoot, '方案列表.json');
+    this.migrationFile = path.join(this.materialCenterRoot, '_迁移状态.json');
     this.productMappingFile = path.join(this.productConfigRoot, '产品型号映射.csv');
     this.cacheRoot = path.join(this.root, '下载缓存');
     this.logsRoot = path.join(this.root, '发布日志');
@@ -70,14 +154,20 @@ class LibraryStore {
   }
 
   initialize() {
+    this.migrateLegacyMaterials();
     for (const directory of Object.values(this.paths())) fs.mkdirSync(directory, { recursive: true });
     this.writeInstructions();
+    this.writeCenterGuide();
     return this.paths();
   }
 
   paths() {
     return {
-      root: this.root,
+      root: this.materialCenterRoot,
+      materialCenter: this.materialCenterRoot,
+      schemes: this.schemeLibraryRoot,
+      activitySchemes: this.activitySchemesRoot,
+      currentScheme: this.defaultSchemeRoot,
       covers: this.coversRoot,
       copy: this.copyRoot,
       tags: this.tagsRoot,
@@ -87,6 +177,75 @@ class LibraryStore {
       logs: this.logsRoot,
       records: this.recordsRoot
     };
+  }
+
+  writeCenterGuide() {
+    const guidePath = path.join(this.materialCenterRoot, '00_素材库使用说明.txt');
+    if (!fs.existsSync(guidePath)) fs.writeFileSync(guidePath, [
+      '素材中心按“方案优先、平台其次”组织。',
+      '常规方案保存日常文案；活动方案只需放变化内容，缺失内容会自动继承常规方案。',
+      '共享素材中的封面不会随活动方案切换。',
+      '每个产品型号建立同名 txt；文案每行一条，Tag 每行一组，商品短标题每行一个。',
+      '请勿在工作区目录中复制 Chrome Profile、飞书链接、发布日志或下载缓存。',
+      ''
+    ].join('\n'), 'utf8');
+  }
+
+  migrateLegacyMaterials() {
+    fs.mkdirSync(this.materialCenterRoot, { recursive: true });
+    fs.mkdirSync(this.schemeLibraryRoot, { recursive: true });
+    let state = { version: 2, workspaces: {} };
+    try { state = JSON.parse(fs.readFileSync(this.migrationFile, 'utf8')); } catch {}
+    state.workspaces = state.workspaces || {};
+    const alreadyMigrated = Boolean(state.workspaces[this.workspaceId || 'default']);
+    let registry = [];
+    try { registry = JSON.parse(fs.readFileSync(this.schemesFile, 'utf8')); } catch {}
+    if (!Array.isArray(registry)) registry = [];
+    let legacySchemes = [];
+    try { legacySchemes = JSON.parse(fs.readFileSync(path.join(this.legacySchemesRoot, '方案列表.json'), 'utf8')); } catch {}
+    if (!Array.isArray(legacySchemes)) legacySchemes = [];
+    for (const legacy of legacySchemes) {
+      if (!legacy?.id || registry.some((item) => item.id === legacy.id)) continue;
+      const nextNumber = registry.reduce((max, item) => Math.max(max, Number(String(item.code || '').replace(/^S/, '')) || 0), 0) + 1;
+      const code = `S${String(nextNumber).padStart(3, '0')}`;
+      registry.push({ ...legacy, code, directoryName: schemeDirectoryName(legacy.name, code) });
+    }
+    let highestCode = registry.reduce((max, item) => Math.max(max, Number(String(item.code || '').replace(/^S/, '')) || 0), 0);
+    registry = registry.map((item) => {
+      const code = item.code || `S${String(++highestCode).padStart(3, '0')}`;
+      return { ...item, code, directoryName: item.directoryName || schemeDirectoryName(item.name, code) };
+    });
+    fs.writeFileSync(this.schemesFile, `${JSON.stringify(registry, null, 2)}\n`, 'utf8');
+    let files = 0;
+    let bytes = 0;
+    if (!alreadyMigrated) {
+      for (const [legacyName, target] of [
+        ['封面库', this.coversRoot],
+        ['文案库', this.copyRoot],
+        ['Tag库', this.tagsRoot],
+        ['商品短标题库', this.shortTitlesRoot]
+      ]) {
+        const copied = copyTreeMissing(path.join(this.legacyRoot, legacyName), target);
+        files += copied.files; bytes += copied.bytes;
+      }
+    }
+    for (const scheme of registry) {
+      const directoryName = scheme.directoryName || schemeDirectoryName(scheme.name, scheme.code || 'S000');
+      if (!alreadyMigrated) {
+        for (const contentName of CONTENT_DIRECTORIES) {
+          const copied = copyTreeMissing(
+            path.join(this.legacySchemesRoot, safeName(scheme.id, ''), contentName),
+            path.join(this.activitySchemesRoot, directoryName, this.platformFolder, contentName)
+          );
+          files += copied.files; bytes += copied.bytes;
+        }
+      }
+      this.ensureSchemeDirectories({ ...scheme, directoryName });
+    }
+    state.version = 2;
+    state.updatedAt = new Date().toISOString();
+    if (!alreadyMigrated) state.workspaces[this.workspaceId || 'default'] = { migratedAt: new Date().toISOString(), copiedFiles: files, copiedBytes: bytes, legacyRoot: this.legacyRoot };
+    fs.writeFileSync(this.migrationFile, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
   }
 
   writeInstructions() {
@@ -131,20 +290,205 @@ class LibraryStore {
   }
 
   productPaths(category, model) {
+    return this.schemeProductPaths(category, model, DEFAULT_SCHEME_ID);
+  }
+
+  schemeById(schemeId) {
+    return this.listSchemes().find((scheme) => scheme.id === schemeId) || null;
+  }
+
+  ensureSchemeDirectories(scheme) {
+    const isDefault = !scheme || scheme.id === DEFAULT_SCHEME_ID || scheme.builtIn;
+    const contentRoot = isDefault
+      ? this.defaultSchemeRoot
+      : path.join(this.activitySchemesRoot, scheme.directoryName || schemeDirectoryName(scheme.name, scheme.code));
+    const platformRoot = isDefault ? contentRoot : path.join(contentRoot, this.platformFolder);
+    for (const directory of CONTENT_DIRECTORIES) fs.mkdirSync(path.join(platformRoot, directory), { recursive: true });
+    if (!isDefault) {
+      const infoPath = path.join(contentRoot, '_方案信息.json');
+      fs.writeFileSync(infoPath, `${JSON.stringify({
+        id: scheme.id, code: scheme.code, name: scheme.name,
+        startDate: scheme.startDate || '', endDate: scheme.endDate || '',
+        mode: scheme.mode || 'inherit', note: '活动方案缺失的内容自动继承常规方案；封面始终来自共享素材。'
+      }, null, 2)}\n`, 'utf8');
+      const guide = path.join(contentRoot, '_批量填写说明.txt');
+      if (!fs.existsSync(guide)) fs.writeFileSync(guide, [
+        '只需填写本活动中发生变化的产品，未提供的内容会自动继承常规方案。',
+        '文案库：产品型号.txt，每行一条文案。',
+        'Tag库：产品型号.txt，每行一组 Tag，逗号分隔，最多5个，不写井号。',
+        '商品短标题库：产品型号.txt，每行一个标题，最多10个汉字，仅抖音商城使用。',
+        '封面由所有方案共享，不要复制到活动方案中。',
+        ''
+      ].join('\n'), 'utf8');
+    }
+    return platformRoot;
+  }
+
+  schemeProductPaths(category, model, schemeId = DEFAULT_SCHEME_ID) {
     const modelName = safeName(model, '未命名产品');
+    const normalizedSchemeId = safeName(schemeId, DEFAULT_SCHEME_ID);
+    const scheme = normalizedSchemeId === DEFAULT_SCHEME_ID ? null : this.schemeById(normalizedSchemeId);
+    const contentRoot = normalizedSchemeId === DEFAULT_SCHEME_ID
+      ? this.defaultSchemeRoot
+      : path.join(this.activitySchemesRoot, scheme?.directoryName || normalizedSchemeId, this.platformFolder);
     return {
       coverDirectory: path.join(this.coversRoot, modelName),
-      copyFile: path.join(this.copyRoot, `${modelName}.txt`),
-      tagsFile: path.join(this.tagsRoot, `${modelName}.txt`),
-      shortTitlesFile: path.join(this.shortTitlesRoot, `${modelName}.txt`)
+      copyFile: path.join(contentRoot, '文案库', `${modelName}.txt`),
+      tagsFile: path.join(contentRoot, 'Tag库', `${modelName}.txt`),
+      shortTitlesFile: path.join(contentRoot, '商品短标题库', `${modelName}.txt`)
     };
   }
 
-  match(item, sequence = 0) {
-    const productPaths = this.productPaths(item.category, item.model);
+  listSchemes() {
+    let stored = [];
+    try { stored = JSON.parse(fs.readFileSync(this.schemesFile, 'utf8')); } catch {}
+    if (!Array.isArray(stored)) stored = [];
+    return [{ id: DEFAULT_SCHEME_ID, name: '常规方案', enabled: true, builtIn: true, code: 'S000', directoryName: '常规方案' }, ...stored]
+      .filter((scheme, index, items) => scheme?.id && items.findIndex((item) => item.id === scheme.id) === index);
+  }
+
+  saveScheme(input = {}) {
+    const name = String(input.name || '').trim();
+    if (!name) throw new Error('素材方案名称不能为空');
+    const id = safeName(input.id || `scheme-${crypto.randomUUID()}`, '');
+    if (!id || id === DEFAULT_SCHEME_ID) throw new Error('素材方案标识无效');
+    const startDate = String(input.startDate || '').trim();
+    const endDate = String(input.endDate || '').trim();
+    if ((startDate && !validDate(startDate)) || (endDate && !validDate(endDate))) throw new Error('素材方案生效日期格式不正确');
+    if (startDate && endDate && startDate > endDate) throw new Error('素材方案结束日期不能早于开始日期');
+    const schemes = this.listSchemes().filter((scheme) => !scheme.builtIn);
+    const index = schemes.findIndex((scheme) => scheme.id === id);
+    const nextCodeNumber = schemes.reduce((max, item) => Math.max(max, Number(String(item.code || '').replace(/^S/, '')) || 0), 0) + 1;
+    const code = index >= 0 ? schemes[index].code : `S${String(nextCodeNumber).padStart(3, '0')}`;
+    const next = {
+      ...(index >= 0 ? schemes[index] : { id, createdAt: new Date().toISOString() }),
+      name, startDate, endDate, enabled: input.enabled !== false,
+      code,
+      directoryName: index >= 0 ? schemes[index].directoryName : schemeDirectoryName(name, code),
+      mode: input.mode === 'copy' ? 'copy' : input.mode === 'blank' ? 'blank' : 'inherit',
+      priority: Number.isFinite(Number(input.priority)) ? Number(input.priority) : 0,
+      updatedAt: new Date().toISOString()
+    };
+    if (index >= 0) schemes[index] = next;
+    else schemes.push(next);
+    fs.mkdirSync(this.schemesRoot, { recursive: true });
+    const temporary = `${this.schemesFile}.tmp`;
+    fs.writeFileSync(temporary, `${JSON.stringify(schemes, null, 2)}\n`, 'utf8');
+    fs.renameSync(temporary, this.schemesFile);
+    this.ensureSchemeDirectories(next);
+    if (next.mode === 'copy' && input.sourceSchemeId) this.copySchemeContent(String(input.sourceSchemeId), next.id);
+    return next;
+  }
+
+  schemeDirectory(schemeId = DEFAULT_SCHEME_ID) {
+    if (schemeId === DEFAULT_SCHEME_ID) return this.defaultSchemeRoot;
+    const scheme = this.schemeById(schemeId);
+    if (!scheme) throw new Error('指定的素材方案不存在');
+    this.ensureSchemeDirectories(scheme);
+    return path.join(this.activitySchemesRoot, scheme.directoryName);
+  }
+
+  copySchemeContent(sourceSchemeId, targetSchemeId) {
+    if (sourceSchemeId === targetSchemeId) throw new Error('不能复制到同一个方案');
+    const sourcePaths = this.schemeProductPaths('', '__placeholder__', sourceSchemeId);
+    const targetPaths = this.schemeProductPaths('', '__placeholder__', targetSchemeId);
+    let files = 0;
+    for (const [source, target] of [
+      [path.dirname(sourcePaths.copyFile), path.dirname(targetPaths.copyFile)],
+      [path.dirname(sourcePaths.tagsFile), path.dirname(targetPaths.tagsFile)],
+      [path.dirname(sourcePaths.shortTitlesFile), path.dirname(targetPaths.shortTitlesFile)]
+    ]) files += copyTreeMissing(source, target).files;
+    return { files };
+  }
+
+  packageSources(schemeIds = null) {
+    const selected = schemeIds ? new Set([...schemeIds].map(String)) : null;
+    const sources = [
+      { prefix: '封面库', root: this.coversRoot },
+      { prefix: '文案库', root: this.copyRoot },
+      { prefix: 'Tag库', root: this.tagsRoot },
+      { prefix: '商品短标题库', root: this.shortTitlesRoot }
+    ];
+    for (const scheme of this.listSchemes().filter((item) => !item.builtIn)) {
+      if (selected && !selected.has(scheme.id)) continue;
+      const paths = this.schemeProductPaths('', '__placeholder__', scheme.id);
+      sources.push(
+        { prefix: `素材方案/${scheme.id}/文案库`, root: path.dirname(paths.copyFile) },
+        { prefix: `素材方案/${scheme.id}/Tag库`, root: path.dirname(paths.tagsFile) },
+        { prefix: `素材方案/${scheme.id}/商品短标题库`, root: path.dirname(paths.shortTitlesFile) }
+      );
+    }
+    return sources;
+  }
+
+  packageDestination(relativePath) {
+    const segments = String(relativePath || '').replace(/\\/g, '/').split('/').filter(Boolean);
+    const rootName = segments.shift();
+    let base;
+    if (rootName === '封面库') base = this.coversRoot;
+    else if (rootName === '文案库') base = this.copyRoot;
+    else if (rootName === 'Tag库') base = this.tagsRoot;
+    else if (rootName === '商品短标题库') base = this.shortTitlesRoot;
+    else if (rootName === '素材方案') {
+      const schemeId = segments.shift();
+      if (segments[0] === '方案列表.json' || schemeId === '方案列表.json') return null;
+      const category = segments.shift();
+      const paths = this.schemeProductPaths('', '__placeholder__', schemeId);
+      base = category === '文案库' ? path.dirname(paths.copyFile)
+        : category === 'Tag库' ? path.dirname(paths.tagsFile)
+          : category === '商品短标题库' ? path.dirname(paths.shortTitlesFile) : null;
+    }
+    if (!base) throw new Error(`不支持的素材包路径：${relativePath}`);
+    const destination = path.resolve(base, ...segments);
+    const relative = path.relative(path.resolve(base), destination);
+    if (relative.startsWith('..') || path.isAbsolute(relative)) throw new Error(`素材包路径越界：${relativePath}`);
+    return destination;
+  }
+
+  inspectScheme(schemeId = DEFAULT_SCHEME_ID) {
+    const scheme = this.schemeById(schemeId);
+    if (!scheme) throw new Error('指定的素材方案不存在');
+    const items = this.listProducts(schemeId);
+    const issues = [];
+    for (const item of items) {
+      if (!item.copyCount && schemeId === DEFAULT_SCHEME_ID) issues.push(`${item.model}：缺少文案`);
+      if (!item.tagGroupCount && schemeId === DEFAULT_SCHEME_ID) issues.push(`${item.model}：缺少 Tag`);
+      if (!item.coverCount) issues.push(`${item.model}：缺少共享封面`);
+      if (this.workspaceId === 'douyin-commerce' && !item.shortTitleCount && schemeId === DEFAULT_SCHEME_ID) issues.push(`${item.model}：缺少商品短标题`);
+    }
+    const overridden = items.filter((item) => item.overridden).length;
+    return {
+      schemeId, schemeName: scheme.name, workspaceId: this.workspaceId,
+      directory: this.schemeDirectory(schemeId), products: items.length, overridden, issues
+    };
+  }
+
+  resolveScheme(targetDate, requestedId = 'auto') {
+    const schemes = this.listSchemes();
+    if (requestedId && requestedId !== 'auto') {
+      const selected = schemes.find((scheme) => scheme.id === requestedId && scheme.enabled !== false);
+      if (!selected) throw new Error('指定的素材方案不存在或已停用');
+      return { ...selected, selectionMode: 'manual' };
+    }
+    const matched = schemes.filter((scheme) => !scheme.builtIn && scheme.enabled !== false
+      && (!scheme.startDate || targetDate >= scheme.startDate)
+      && (!scheme.endDate || targetDate <= scheme.endDate))
+      .sort((left, right) => Number(right.priority || 0) - Number(left.priority || 0)
+        || String(right.updatedAt || '').localeCompare(String(left.updatedAt || '')))[0];
+    return { ...(matched || schemes[0]), selectionMode: 'auto' };
+  }
+
+  match(item, sequence = 0, options = {}) {
+    const scheme = this.resolveScheme(options.targetDate || '', options.schemeId || DEFAULT_SCHEME_ID);
+    const productPaths = this.schemeProductPaths(item.category, item.model, scheme.id);
+    const fallbackPaths = this.productPaths(item.category, item.model);
     const copies = readVariants(productPaths.copyFile);
     const tagGroups = readVariants(productPaths.tagsFile);
     const shortTitles = readVariants(productPaths.shortTitlesFile);
+    const allowsFallback = scheme.id !== DEFAULT_SCHEME_ID && scheme.mode !== 'blank';
+    const resolvedCopies = copies.length || !allowsFallback ? copies : readVariants(fallbackPaths.copyFile);
+    const resolvedTagGroups = tagGroups.length || !allowsFallback ? tagGroups : readVariants(fallbackPaths.tagsFile);
+    const resolvedShortTitles = shortTitles.length || !allowsFallback ? shortTitles : readVariants(fallbackPaths.shortTitlesFile);
     const covers = fs.existsSync(productPaths.coverDirectory)
       ? fs.readdirSync(productPaths.coverDirectory, { withFileTypes: true })
         .filter((entry) => entry.isFile() && IMAGE_EXTENSIONS.has(path.extname(entry.name).toLowerCase()))
@@ -152,43 +496,63 @@ class LibraryStore {
         .sort((left, right) => left.localeCompare(right, 'zh-CN'))
       : [];
     const missing = [];
-    if (!copies.length) missing.push('文案');
-    if (!tagGroups.length) missing.push('Tag');
+    if (!resolvedCopies.length) missing.push('文案');
+    if (!resolvedTagGroups.length) missing.push('Tag');
     if (!covers.length) missing.push('封面');
-    const body = copies.length ? copies[sequence % copies.length] : '';
-    const tags = tagGroups.length ? normalizeTags(tagGroups[sequence % tagGroups.length]) : [];
-    if (tagGroups.length && !tags.length) missing.push('Tag内容为空');
+    const copyOrdinal = Number.isFinite(Number(options.copyOrdinal)) ? Number(options.copyOrdinal) : sequence;
+    const copyIndex = resolvedCopies.length
+      ? shuffledIndex(resolvedCopies.length, copyOrdinal, `${options.randomSeed || 'legacy'}|${item.model || ''}|${scheme.id}`) : -1;
+    const body = copyIndex >= 0 ? resolvedCopies[copyIndex] : '';
+    const tags = resolvedTagGroups.length ? normalizeTags(resolvedTagGroups[sequence % resolvedTagGroups.length]) : [];
+    if (resolvedTagGroups.length && !tags.length) missing.push('Tag内容为空');
     return {
       body,
       tags,
       coverPath: covers.length ? covers[sequence % covers.length] : null,
-      productShortTitle: shortTitles.map((value) => validateShortTitle(value)).find((value) => value.valid)?.title || '',
-      productShortTitles: shortTitles.map((value) => validateShortTitle(value)).filter((value) => value.valid).map((value) => value.title),
-      shortTitleIssue: shortTitles.length && !shortTitles.some((value) => validateShortTitle(value).valid)
+      productShortTitle: resolvedShortTitles.map((value) => validateShortTitle(value)).find((value) => value.valid)?.title || '',
+      productShortTitles: resolvedShortTitles.map((value) => validateShortTitle(value)).filter((value) => value.valid).map((value) => value.title),
+      shortTitleIssue: resolvedShortTitles.length && !resolvedShortTitles.some((value) => validateShortTitle(value).valid)
         ? '商品短标题库内容不符合平台限制' : '',
       missing: [...new Set(missing)],
-      expectedPaths: productPaths
+      expectedPaths: productPaths,
+      contentSelection: {
+        schemeId: scheme.id, schemeName: scheme.name, selectionMode: scheme.selectionMode,
+        copyIndex, copyHash: body ? crypto.createHash('sha256').update(body).digest('hex') : ''
+      }
     };
   }
 
-  productSummary(model) {
-    const productPaths = this.productPaths('', model);
+  productSummary(model, schemeId = DEFAULT_SCHEME_ID) {
+    const productPaths = this.schemeProductPaths('', model, schemeId);
+    const scheme = this.schemeById(schemeId);
+    const fallbackPaths = this.productPaths('', model);
     const covers = fs.existsSync(productPaths.coverDirectory)
       ? fs.readdirSync(productPaths.coverDirectory, { withFileTypes: true })
         .filter((entry) => entry.isFile() && IMAGE_EXTENSIONS.has(path.extname(entry.name).toLowerCase()))
       : [];
+    const ownCopyCount = readVariants(productPaths.copyFile).length;
+    const ownTagGroupCount = readVariants(productPaths.tagsFile).length;
+    const ownShortTitleCount = readVariants(productPaths.shortTitlesFile).filter((value) => validateShortTitle(value).valid).length;
+    const inherits = schemeId !== DEFAULT_SCHEME_ID && scheme?.mode !== 'blank';
     return {
       model: String(model || '').trim(),
       safeModel: safeName(model, '\u672a\u547d\u540d\u4ea7\u54c1'),
-      copyCount: readVariants(productPaths.copyFile).length,
-      tagGroupCount: readVariants(productPaths.tagsFile).length,
+      copyCount: ownCopyCount || (inherits ? readVariants(fallbackPaths.copyFile).length : 0),
+      tagGroupCount: ownTagGroupCount || (inherits ? readVariants(fallbackPaths.tagsFile).length : 0),
       coverCount: covers.length,
-      shortTitleCount: readVariants(productPaths.shortTitlesFile).filter((value) => validateShortTitle(value).valid).length,
+      shortTitleCount: ownShortTitleCount || (inherits ? readVariants(fallbackPaths.shortTitlesFile).filter((value) => validateShortTitle(value).valid).length : 0),
+      ownCopyCount, ownTagGroupCount, ownShortTitleCount,
+      inherited: inherits && !ownCopyCount && !ownTagGroupCount && !ownShortTitleCount,
+      overridden: Boolean(ownCopyCount || ownTagGroupCount || ownShortTitleCount),
       paths: productPaths
     };
   }
 
-  listProducts() {
+  listProducts(schemeId = DEFAULT_SCHEME_ID) {
+    const schemePaths = this.schemeProductPaths('', '__placeholder__', schemeId);
+    const copyRoot = path.dirname(schemePaths.copyFile);
+    const tagsRoot = path.dirname(schemePaths.tagsFile);
+    const shortTitlesRoot = path.dirname(schemePaths.shortTitlesFile);
     const models = new Set();
     const addTextFiles = (directory) => {
       if (!fs.existsSync(directory)) return;
@@ -198,33 +562,38 @@ class LibraryStore {
         }
       }
     };
-    addTextFiles(this.copyRoot);
-    addTextFiles(this.tagsRoot);
-    addTextFiles(this.shortTitlesRoot);
+    addTextFiles(copyRoot);
+    addTextFiles(tagsRoot);
+    addTextFiles(shortTitlesRoot);
+    if (schemeId !== DEFAULT_SCHEME_ID) {
+      addTextFiles(this.copyRoot);
+      addTextFiles(this.tagsRoot);
+      addTextFiles(this.shortTitlesRoot);
+    }
     if (fs.existsSync(this.coversRoot)) {
       for (const entry of fs.readdirSync(this.coversRoot, { withFileTypes: true })) {
         if (entry.isDirectory() && !entry.name.startsWith('_')) models.add(entry.name);
       }
     }
-    return [...models].sort((left, right) => left.localeCompare(right, 'zh-CN')).map((model) => this.productSummary(model));
+    return [...models].sort((left, right) => left.localeCompare(right, 'zh-CN')).map((model) => this.productSummary(model, schemeId));
   }
 
-  captureProduct(model) {
-    const targets = this.productPaths('', model);
+  captureProduct(model, schemeId = DEFAULT_SCHEME_ID) {
+    const targets = this.schemeProductPaths('', model, schemeId);
     const captureFile = (filePath) => fs.existsSync(filePath) ? fs.readFileSync(filePath) : null;
     const covers = fs.existsSync(targets.coverDirectory)
       ? fs.readdirSync(targets.coverDirectory, { withFileTypes: true }).filter((entry) => entry.isFile()).map((entry) => ({
         name: entry.name, data: fs.readFileSync(path.join(targets.coverDirectory, entry.name))
       })) : null;
     return {
-      model,
+      model, schemeId,
       copy: captureFile(targets.copyFile), tags: captureFile(targets.tagsFile), shortTitles: captureFile(targets.shortTitlesFile), covers,
       index: captureFile(path.join(this.productConfigRoot, '\u7d20\u6750\u5f55\u5165\u7d22\u5f15.json'))
     };
   }
 
   restoreProduct(snapshot) {
-    const targets = this.productPaths('', snapshot.model);
+    const targets = this.schemeProductPaths('', snapshot.model, snapshot.schemeId || DEFAULT_SCHEME_ID);
     const restoreFile = (filePath, data) => {
       if (fs.existsSync(filePath)) fs.rmSync(filePath, { force: true });
       if (data !== null) {
@@ -276,7 +645,9 @@ class LibraryStore {
       validateImageFile(resolved);
     }
 
-    const targets = this.productPaths('', model);
+    const schemeId = String(input.schemeId || DEFAULT_SCHEME_ID);
+    if (!this.listSchemes().some((scheme) => scheme.id === schemeId)) throw new Error('要写入的素材方案不存在');
+    const targets = this.schemeProductPaths('', model, schemeId);
     const stageRoot = path.join(this.root, `.material-stage-${crypto.randomUUID()}`);
     const stage = {
       copyFile: path.join(stageRoot, '\u6587\u6848.txt'),
@@ -294,12 +665,13 @@ class LibraryStore {
       fs.writeFileSync(stage.copyFile, nextCopies.length ? `${nextCopies.join('\n')}\n` : '', 'utf8');
       fs.writeFileSync(stage.tagsFile, nextTags.length ? `${nextTags.join('\n')}\n` : '', 'utf8');
       fs.writeFileSync(stage.shortTitlesFile, nextTitles.length ? `${nextTitles.join('\n')}\n` : '', 'utf8');
-      if (mode === 'append') copyDirectory(targets.coverDirectory, stage.coverDirectory);
+      const editsSharedCovers = schemeId === DEFAULT_SCHEME_ID;
+      if (editsSharedCovers && mode === 'append') copyDirectory(targets.coverDirectory, stage.coverDirectory);
       else fs.mkdirSync(stage.coverDirectory, { recursive: true });
       const knownHashes = new Set(fs.readdirSync(stage.coverDirectory, { withFileTypes: true })
         .filter((entry) => entry.isFile()).map((entry) => fileHash(path.join(stage.coverDirectory, entry.name))));
       let coversAdded = 0;
-      for (const source of coverPaths) {
+      for (const source of editsSharedCovers ? coverPaths : []) {
         const hash = fileHash(source);
         if (knownHashes.has(hash)) continue;
         knownHashes.add(hash);
@@ -315,9 +687,9 @@ class LibraryStore {
       const commitTargets = [
         [stage.copyFile, targets.copyFile],
         [stage.tagsFile, targets.tagsFile],
-        [stage.shortTitlesFile, targets.shortTitlesFile],
-        [stage.coverDirectory, targets.coverDirectory]
+        [stage.shortTitlesFile, targets.shortTitlesFile]
       ];
+      if (editsSharedCovers) commitTargets.push([stage.coverDirectory, targets.coverDirectory]);
       if (mode === 'replace' && commitTargets.some(([, target]) => fs.existsSync(target))) {
         const stamp = new Date().toISOString().replace(/[:.]/g, '-');
         const backupRoot = path.join(this.productConfigRoot, '\u7d20\u6750\u5907\u4efd', `${stamp}-${safeModel}`);
@@ -344,9 +716,9 @@ class LibraryStore {
       const indexTemporary = `${materialIndexPath}.tmp`;
       fs.writeFileSync(indexTemporary, `${JSON.stringify(materialIndex, null, 2)}\n`, 'utf8');
       fs.renameSync(indexTemporary, materialIndexPath);
-      const summary = this.productSummary(model);
+      const summary = this.productSummary(model, schemeId);
       const auditPath = path.join(this.productConfigRoot, '\u7d20\u6750\u53d8\u66f4\u8bb0\u5f55.jsonl');
-      fs.appendFileSync(auditPath, `${JSON.stringify({ at: new Date().toISOString(), workspaceId: this.workspaceId, model, safeModel, mode, added: { copies: copies.length, tagGroups: tagGroups.length, covers: coversAdded, shortTitles: shortTitles.length }, totals: summary })}\n`, 'utf8');
+      fs.appendFileSync(auditPath, `${JSON.stringify({ at: new Date().toISOString(), workspaceId: this.workspaceId, schemeId, model, safeModel, mode, added: { copies: copies.length, tagGroups: tagGroups.length, covers: coversAdded, shortTitles: shortTitles.length }, totals: summary })}\n`, 'utf8');
       return { ...summary, mode, coversAdded };
     } catch (error) {
       for (const target of createdTargets) {
@@ -362,10 +734,10 @@ class LibraryStore {
     }
   }
 
-  saveProductShortTitle(model, value) {
+  saveProductShortTitle(model, value, schemeId = DEFAULT_SCHEME_ID) {
     const title = validateShortTitle(value);
     if (!title.valid) throw new Error(title.reason);
-    const filePath = this.productPaths('', model).shortTitlesFile;
+    const filePath = this.schemeProductPaths('', model, schemeId).shortTitlesFile;
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
     const current = readVariants(filePath);
     if (!current.includes(title.title)) {

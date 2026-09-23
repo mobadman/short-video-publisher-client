@@ -92,7 +92,7 @@ function upgradeItem(item, index) {
 
 function upgradePlan(plan) {
   if (!plan || plan.invalid) return plan;
-  return { ...plan, schemaVersion: 3, items: (plan.items || []).map(upgradeItem) };
+  return { ...plan, schemaVersion: 4, items: (plan.items || []).map(upgradeItem) };
 }
 
 class PlanService {
@@ -128,6 +128,10 @@ class PlanService {
     const settings = this.settings();
     if (!settings.sheetUrl) throw new Error('\u8bf7\u5148\u4e3a\u5f53\u524d\u5de5\u4f5c\u533a\u914d\u7f6e\u98de\u4e66\u7535\u5b50\u8868\u683c\u94fe\u63a5');
     const filterMode = options.filterMode || 'auto';
+    const requestedSchemeId = String(options.schemeId || 'auto');
+    const contentScheme = this.libraryStore.resolveScheme
+      ? this.libraryStore.resolveScheme(date, requestedSchemeId) : { id: 'default', name: '常规方案', selectionMode: 'auto' };
+    const randomSeed = crypto.randomUUID();
     const result = await pullReporter.measure('读取飞书筛选结果', () => this.feishuService.rowsForDate(settings, date, {
       filterMode,
       commerceRequired: Boolean(this.workspace?.commerceRequired)
@@ -137,6 +141,7 @@ class PlanService {
     if (rows.length > 44) throw new Error(`【${date}】共有${rows.length}条视频，超过单日44条上限`);
     const ordered = buildPlan(rows, date, { lane: this.workspace?.mode === 'commerce' ? 5 : 0 });
     const items = [];
+    const modelOrdinals = new Map();
     const transfers = [];
     for (let index = 0; index < ordered.length; index += 1) {
       this.feishuService.browserManager?.assertNotCancelled?.();
@@ -172,7 +177,15 @@ class PlanService {
       } catch (error) {
         throw new Error(`飞书第${item.sourceRow}行素材下载完成校验失败：${error.message}`);
       }
-      const library = this.libraryStore.match(item, index);
+      const modelKey = String(item.model || '').trim();
+      const copyOrdinal = modelOrdinals.get(modelKey) || 0;
+      modelOrdinals.set(modelKey, copyOrdinal + 1);
+      const library = this.libraryStore.match(item, index, {
+        schemeId: contentScheme.id,
+        targetDate: date,
+        randomSeed,
+        copyOrdinal
+      });
       const commerceRequired = Boolean(this.workspace?.commerceRequired);
       const problems = [...item.sourceMissing, ...library.missing.filter((missing) => !(commerceRequired && missing === '\u5c01\u9762'))];
       const warnings = commerceRequired && !library.coverPath
@@ -213,6 +226,7 @@ class PlanService {
         fileHash,
         videoPath,
         body: library.body,
+        contentSelection: library.contentSelection || null,
         tags: library.tags,
         coverPath: library.coverPath,
         coverMode: library.coverPath ? 'library-cover' : commerceRequired ? 'video-first-frame' : 'library-cover',
@@ -224,7 +238,7 @@ class PlanService {
       }, index));
     }
     const plan = this.save({
-      schemaVersion: 3,
+      schemaVersion: 4,
       id: crypto.randomUUID(),
       date,
       createdAt: new Date().toISOString(),
@@ -242,6 +256,15 @@ class PlanService {
         publisherAccountId: this.workspace.publisherAccountId,
         commerceAccountId: this.workspace.commerceAccountId || null
       } : null,
+      contentScheme: {
+        id: contentScheme.id,
+        name: contentScheme.name,
+        selectionMode: contentScheme.selectionMode,
+        startDate: contentScheme.startDate || '',
+        endDate: contentScheme.endDate || '',
+        lockedAt: new Date().toISOString(),
+        randomSeed
+      },
       warnings: [],
       status: 'draft',
       statusDetail: '',
@@ -305,7 +328,12 @@ class PlanService {
       if (item.coverPath && !Object.hasOwn(input, 'coverMode')) item.coverMode = 'manual-cover';
     }
     if (item.commerce?.required && item.model !== previousModel) {
-      const library = this.libraryStore.match(item, Math.max(0, Number(item.sequence || 1) - 1));
+      const library = this.libraryStore.match(item, Math.max(0, Number(item.sequence || 1) - 1), {
+        schemeId: plan.contentScheme?.id || 'default',
+        targetDate: plan.date,
+        randomSeed: plan.contentScheme?.randomSeed || plan.id,
+        copyOrdinal: Math.max(0, Number(item.sequence || 1) - 1)
+      });
       const localShortTitle = validateShortTitle(library.productShortTitle);
       item.commerce = {
         required: true,
@@ -333,7 +361,7 @@ class PlanService {
     }
     if (item.commerce?.required && input.saveProductShortTitle) {
       if (!item.commerce.shortTitleConfirmed) throw new Error('\u8bf7\u5148\u4eba\u5de5\u786e\u8ba4\u5546\u54c1\u77ed\u6807\u9898\uff0c\u518d\u4fdd\u5b58\u5230\u672c\u5730\u5e93');
-      this.libraryStore.saveProductShortTitle(item.model, item.commerce.productShortTitle);
+      this.libraryStore.saveProductShortTitle(item.model, item.commerce.productShortTitle, plan.contentScheme?.id || 'default');
     }
     if (Object.hasOwn(input, 'scheduledLocal')) {
       const value = String(input.scheduledLocal || '').trim().replace('T', ' ');

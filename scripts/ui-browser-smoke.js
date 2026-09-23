@@ -9,7 +9,7 @@ const { WechatChannelsBrowserManager } = require('../src/wechat-channels-browser
 (async () => {
   const root = path.join(__dirname, '..');
   const executablePath = path.join(root, '.playwright-browsers', 'chromium-1208', 'chrome-win64', 'chrome.exe');
-  const output = path.join(root, '.ui-4.1.5');
+  const output = path.join(root, '.ui-4.2.1');
   fs.mkdirSync(output, { recursive: true });
   const browser = await chromium.launch({ executablePath, headless: true });
   const page = await browser.newPage({ viewport: { width: 1080, height: 720 } });
@@ -27,6 +27,7 @@ const { WechatChannelsBrowserManager } = require('../src/wechat-channels-browser
       getBrowserStatus: async () => ({ open: false, activeAccountId: null }), getSettings: async () => ({}),
       getFeishuBrowserStatus: async () => ({ open: false, loggedIn: false }), getLibraryPaths: async () => ({}),
       getCurrentPlan: async () => null, getDurationEstimates: async () => ({ pull: '预计约6–13分钟（按8–20条）' }),
+      listLibrarySchemes: async () => ({ items: [{ id: 'default', name: '常规方案', enabled: true, builtIn: true }], effective: { id: 'default', name: '常规方案' } }),
       listLibraryProducts: async (workspaceId) => ({ workspace: workspaces.find((item) => item.id === workspaceId), items: [
         { model: 'G23微蒸烤', copyCount: 5, tagGroupCount: 3, coverCount: workspaceId === 'douyin-commerce' ? 0 : 4, shortTitleCount: 2 },
         { model: '秋日通勤风衣', copyCount: 2, tagGroupCount: 1, coverCount: 3, shortTitleCount: 0 }
