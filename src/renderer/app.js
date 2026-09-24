@@ -1,6 +1,6 @@
 const byId = (id) => document.getElementById(id);
 const ui = Object.fromEntries([
-  'global-status','side-workspace-label','workbench-date','accounts-main','accounts-test','settings-accounts','workspace-select','select-workspace','workspace-status','workspace-badge','workspace-platform','sheet-url','save-sheet','open-feishu','detect-feishu','close-feishu','settings-status','settings-state','runtime-ready','readiness-score','readiness-progress','readiness-badge','readiness-detail','metric-estimate-value','metric-download-count','metric-download-value','metric-download-progress','metric-download-meta','metric-publish-count','metric-publish-value','metric-publish-progress','metric-publish-meta','metric-risk','metric-next-time','metric-next-meta','commerce-panel','open-short-titles','resolve-commerce-titles','commerce-status','plan-date','plan-scheme','schedule-policy-trigger','schedule-policy-label','schedule-policy-modal','schedule-policy-list','schedule-policy-new','schedule-policy-default-note','schedule-policy-editor','schedule-policy-name','schedule-focus-start','schedule-focus-end','schedule-interval','schedule-avoid-enabled','schedule-avoid-fields','schedule-avoid-start','schedule-avoid-end','schedule-policy-preview','schedule-policy-save','schedule-policy-delete','schedule-policy-status','create-plan-current-filter','clear-cache','plan-body','plan-status','plan-summary','batch-confirm','execute-plan','batch-status','pull-estimate','publish-estimate','select-all','select-none','selection-summary','sync-ids','open-published-videos','export-ids','copy-id-table','open-id-records','view-plan-modal','edit-plan-modal','edit-plan-file','edit-plan-category','edit-plan-model','edit-plan-time','edit-plan-body','edit-plan-tags','edit-plan-choose-cover','edit-plan-cover','edit-cover-mode','edit-commerce-fields','edit-product-short-title','edit-product-link','edit-product-original-title','edit-confirm-short-title','edit-save-short-title','save-plan-item','edit-plan-status','library-workspace-badge','library-model','library-safe-name','library-workspace-targets','library-copies','library-tags','library-short-titles','library-choose-covers','library-cover-summary','library-cover-list','library-save-mode','library-save-product','library-form-status','library-refresh','library-workspace-filter','library-scheme','library-scheme-filter','library-effective-scheme','library-product-list','scheme-name','scheme-start','scheme-end','scheme-mode','scheme-source','scheme-current','scheme-save','scheme-open-folder','scheme-import-batch','scheme-check','scheme-download-template','scheme-status','scheme-inspection','package-scope','export-material-package','import-material-package','package-status','test-platform','test-platform-badge','test-id-tool','choose-video','choose-cover','video-path','cover-path','test-body','body-count','test-tags','scheduled-at','test-confirm','prepare-test','prepare-status','test-resolve-id','test-id-status','watermark-enabled','guard-seconds','save-preferences','preferences-status','close-browser','settings-close-feishu','finish-guide','open-donation','donation-modal','delete-account-modal','delete-account-description','delete-check','delete-account-name','delete-confirm-phrase','confirm-delete-account','delete-account-status'
+  'global-status','side-workspace-label','workbench-date','accounts-main','accounts-test','settings-accounts','workspace-select','select-workspace','workspace-status','workspace-badge','workspace-platform','sheet-url','save-sheet','open-feishu','close-feishu','settings-state','runtime-ready','readiness-score','readiness-progress','readiness-badge','readiness-detail','metric-estimate-value','metric-download-count','metric-download-value','metric-download-progress','metric-download-meta','metric-publish-count','metric-publish-value','metric-publish-progress','metric-publish-meta','metric-risk','metric-next-time','metric-next-meta','commerce-panel','open-short-titles','resolve-commerce-titles','commerce-status','plan-date','plan-scheme','schedule-policy-trigger','schedule-policy-label','schedule-policy-modal','schedule-policy-list','schedule-policy-new','schedule-policy-default-note','schedule-policy-editor','schedule-policy-name','schedule-focus-start','schedule-focus-end','schedule-interval','schedule-avoid-enabled','schedule-avoid-fields','schedule-avoid-start','schedule-avoid-end','schedule-policy-preview','schedule-policy-save','schedule-policy-delete','schedule-policy-status','create-plan-current-filter','clear-cache','plan-body','plan-status','plan-summary','batch-confirm','execute-plan','batch-status','pull-estimate','publish-estimate','select-all','select-none','selection-summary','sync-ids','open-published-videos','export-ids','copy-id-table','open-id-records','view-plan-modal','edit-plan-modal','edit-plan-file','edit-plan-category','edit-plan-model','edit-plan-time','edit-plan-body','edit-plan-tags','edit-plan-choose-cover','edit-plan-cover','edit-cover-mode','edit-commerce-fields','edit-product-short-title','edit-product-link','edit-product-original-title','edit-confirm-short-title','edit-save-short-title','save-plan-item','edit-plan-status','library-workspace-badge','library-model','library-safe-name','library-workspace-targets','library-copies','library-tags','library-short-titles','library-choose-covers','library-cover-summary','library-cover-list','library-save-mode','library-save-product','library-form-status','library-refresh','library-workspace-filter','library-scheme','library-scheme-filter','library-effective-scheme','library-product-list','scheme-name','scheme-start','scheme-end','scheme-mode','scheme-source','scheme-current','scheme-save','scheme-open-folder','scheme-import-batch','scheme-check','scheme-download-template','scheme-status','scheme-inspection','package-scope','export-material-package','import-material-package','package-status','test-platform','test-platform-badge','test-id-tool','choose-video','choose-cover','video-path','cover-path','test-body','body-count','test-tags','scheduled-at','test-confirm','prepare-test','prepare-status','test-resolve-id','test-id-status','watermark-enabled','guard-seconds','save-preferences','preferences-status','close-browser','settings-close-feishu','finish-guide','open-donation','donation-modal','delete-account-modal','delete-account-description','delete-check','delete-account-name','delete-confirm-phrase','confirm-delete-account','delete-account-status'
 ].map((id) => [id, byId(id)]));
 let workspaces = [], activeWorkspace = null, accounts = [], browserStatus = {}, settings = {}, feishuStatus = {}, libraryPaths = {}, currentPlan = null, estimates = {};
 let videoPath = null, coverPath = null, busy = false, activePage = 'main';
@@ -228,16 +228,31 @@ function detectionHtml(account) {
   return `<span>${escapeHtml(detected.message)}</span>`;
 }
 
+function runtimeAccountLabel(account) {
+  if (account.role === 'test') return account.platform === 'wechat-channels' ? '视频号测试账号' : '抖音测试账号';
+  if (account.platform === 'wechat-channels') return '视频号发布账号';
+  if (account.surface === 'shop' || account.id === activeWorkspace?.commerceAccountId || activeWorkspace?.mode === 'commerce') return '抖音商城发布账号';
+  return '抖音发布账号';
+}
+
 function accountCard(account) {
   const active = browserStatus.activeAccountId === account.id;
   const otherActive = browserStatus.open && !active;
-  const role = account.surface === 'shop' ? '抖店商品账号' : account.role === 'production' ? '正式发布账号' : '测试账号';
   const detected = account.lastDetected;
   const status = detected?.state === 'logged-in'
     ? `已检测：${detected.nickname || account.label} · 账号 ${detected.douyinId || '未识别'}`
     : detected?.message || '尚未检测，首次使用需要扫码登录';
   const avatar = account.surface === 'shop' ? '店' : account.platform === 'wechat-channels' ? '视' : '抖';
-  return `<article class="runtime-row ${active ? 'active' : ''}"><span class="runtime-avatar">${avatar}</span><div class="runtime-copy"><strong>${escapeHtml(account.label)} · ${escapeHtml(role)}</strong><small>${escapeHtml(status)}</small></div><div class="runtime-actions"><span class="badge ${detected?.state === 'logged-in' ? 'success' : ''}">${detected?.state === 'logged-in' ? '账号有效' : '待检测'}</span><button class="quiet" data-account-action="open" data-id="${account.id}" ${busy || otherActive ? 'disabled' : ''}>${active ? '切回 Chrome' : '打开 Chrome'}</button><button class="secondary" data-account-action="detect" data-id="${account.id}" ${busy || !active ? 'disabled' : ''}>检测账号</button></div></article>`;
+  return `<article class="runtime-row ${active ? 'active' : ''}"><span class="runtime-avatar">${avatar}</span><div class="runtime-copy"><strong>${escapeHtml(runtimeAccountLabel(account))}</strong><small>${escapeHtml(status)}</small></div><div class="runtime-actions"><span class="badge ${detected?.state === 'logged-in' ? 'success' : ''}">${detected?.state === 'logged-in' ? '账号有效' : '待检测'}</span><button class="quiet" data-account-action="open" data-id="${account.id}" ${busy || otherActive ? 'disabled' : ''}>${active ? '切回 Chrome' : '打开 Chrome'}</button><button class="secondary" data-account-action="detect" data-id="${account.id}" ${busy || !active ? 'disabled' : ''}>检测账号</button></div></article>`;
+}
+
+function timeGreeting(date = new Date()) {
+  const minutes = date.getHours() * 60 + date.getMinutes();
+  if (minutes >= 5 * 60 && minutes < 11 * 60) return '早上好';
+  if (minutes >= 11 * 60 && minutes < 14 * 60) return '中午好';
+  if (minutes >= 14 * 60 && minutes < 18 * 60 + 40) return '下午好';
+  if (minutes >= 18 * 60 + 40 && minutes < 24 * 60) return '晚上好，辛苦了';
+  return '夜深了，辛苦了';
 }
 
 function activeWorkspaceAccounts() {
@@ -453,14 +468,13 @@ function render() {
   ui['test-resolve-id'].disabled = busy || browserStatus.activeAccountId !== test?.id || test?.lastDetected?.state !== 'logged-in';
   ui['test-id-tool'].hidden = testPlatform === 'wechat-channels';
   ui['test-platform-badge'].textContent = testPlatform === 'wechat-channels' ? '视频号测试' : '抖音测试';
-  ui['create-plan-current-filter'].disabled = busy || !feishuStatus.loggedIn;
+  ui['create-plan-current-filter'].disabled = busy;
   ui['resolve-commerce-titles'].disabled = busy || activeWorkspace?.mode !== 'commerce' || !currentPlan?.items?.length
     || browserStatus.activeAccountId !== production?.id || production?.lastDetected?.state !== 'logged-in';
   for (const id of ['save-sheet','open-feishu','clear-cache']) ui[id].disabled = busy;
   ui['save-preferences'].disabled = true;
   ui['watermark-enabled'].disabled = true;
   ui['guard-seconds'].disabled = true;
-  ui['detect-feishu'].disabled = busy || !feishuStatus.open;
   ui['close-feishu'].disabled = busy || !feishuStatus.open;
   ui['close-browser'].disabled = busy || !browserStatus.open;
   ui['settings-close-feishu'].disabled = busy || !feishuStatus.open;
@@ -480,8 +494,9 @@ function render() {
   ui['workspace-badge'].textContent = activeWorkspace?.name || '未选择工作区';
   ui['workspace-platform'].textContent = activeWorkspace?.platform === 'wechat-channels' ? '微信视频号' : activeWorkspace?.mode === 'commerce' ? '抖音 · 商城' : '抖音';
   ui['side-workspace-label'].textContent = activeWorkspace ? `当前工作区：${activeWorkspace.name}` : '正在读取工作区';
-  ui['workbench-date'].textContent = `${new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' }).format(new Date())} · 正式发布`;
-  const environmentsReady = workspaceAccounts.every((account) => account.lastDetected?.state === 'logged-in') && feishuStatus.loggedIn;
+  const now = new Date();
+  ui['workbench-date'].textContent = `${new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' }).format(now)} · ${timeGreeting(now)}`;
+  const environmentsReady = workspaceAccounts.every((account) => account.lastDetected?.state === 'logged-in') && Boolean(activeWorkspace?.sheetUrl);
   ui['runtime-ready'].textContent = environmentsReady ? `${workspaceAccounts.length + 1} / ${workspaceAccounts.length + 1} 就绪` : '存在待检测环境';
   ui['runtime-ready'].className = `badge ${environmentsReady ? 'success' : 'danger-badge'}`;
   ui['commerce-panel'].hidden = activeWorkspace?.mode !== 'commerce';
@@ -523,14 +538,14 @@ async function refresh() {
   ui['sheet-url'].value = activeWorkspace?.sheetUrl || '';
   ui['watermark-enabled'].checked = settings.watermarkEnabled !== false;
   ui['guard-seconds'].value = settings.guardSeconds || 2;
-  ui['settings-state'].textContent = feishuStatus.loggedIn ? '飞书已登录' : feishuStatus.open ? '等待登录检测' : '飞书未打开';
+  ui['settings-state'].textContent = activeWorkspace?.sheetUrl ? '链接已保存' : '未保存链接';
   render();
 }
 
-async function run(action, successMessage, target = null, kind = null) {
+async function run(action, successMessage, target = null, kind = null, shortError = '') {
   busy = true; operationKind = kind; render(); setStatus('正在处理，请稍候…');
   try { await action(); await refresh(); setStatus(successMessage, 'success'); }
-  catch (error) { const message = error.message || String(error); setStatus(message, 'error'); if (target) { target.textContent = message; target.className = 'error'; } }
+  catch (error) { const message = error.message || String(error); setStatus(message, 'error'); if (target) { target.textContent = shortError || message; target.className = 'error'; } }
   finally { busy = false; operationKind = null; render(); }
 }
 
@@ -722,17 +737,15 @@ ui['select-workspace'].addEventListener('click', () => {
 });
 ui['save-sheet'].addEventListener('click', () => run(async () => {
   activeWorkspace = await window.publisher.updateWorkspace(activeWorkspace.id, { sheetUrl: ui['sheet-url'].value });
-  ui['settings-status'].textContent = '当前工作区链接已保存';
-}, '当前工作区的飞书表格链接已保存。', ui['settings-status']));
+}, '当前工作区的飞书表格链接已保存。'));
 ui['resolve-commerce-titles'].addEventListener('click', () => run(async () => {
   ui['commerce-status'].textContent = '正在逐条读取飞书商品链接对应的平台商品原始标题…';
   const result = await window.publisher.resolveCommerceTitles();
   currentPlan = result.plan;
   ui['commerce-status'].textContent = `读取到${result.proposed}条可确认短标题；${result.needsManual}条需人工填写；本地库已匹配${result.skipped}条${result.failures.length ? `；失败${result.failures.length}条：${result.failures.join('；')}` : ''}`;
 }, '商品原始标题读取完成，请逐条人工确认。', ui['commerce-status']));
-ui['open-feishu'].addEventListener('click', () => run(() => window.publisher.openFeishuBrowser(), '飞书 Chrome 已打开。登录并看到目标表格后点击检测登录。', ui['settings-status']));
-ui['detect-feishu'].addEventListener('click', () => run(async () => { const result = await window.publisher.detectFeishuLogin(); ui['settings-status'].textContent = result.message; }, '飞书登录检测完成。', ui['settings-status']));
-ui['close-feishu'].addEventListener('click', () => run(() => window.publisher.closeFeishuBrowser(), '飞书 Chrome 已关闭，登录状态保留。', ui['settings-status']));
+ui['open-feishu'].addEventListener('click', () => run(() => window.publisher.openFeishuBrowser(), '飞书 Chrome 已打开。请保持目标表格可见，随后可直接拉取排期。'));
+ui['close-feishu'].addEventListener('click', () => run(() => window.publisher.closeFeishuBrowser(), '飞书 Chrome 已关闭，登录状态保留。'));
 ui['settings-close-feishu'].addEventListener('click', () => run(() => window.publisher.closeFeishuBrowser(), '飞书 Chrome 已关闭，登录状态保留。'));
 ui['close-browser'].addEventListener('click', () => run(() => window.publisher.closeBrowser(), '当前平台 Chrome 已关闭，登录状态保留。'));
 
@@ -850,7 +863,7 @@ ui['schedule-policy-delete'].addEventListener('click', async () => {
 
 function createPlan() {
   if (!ui['plan-date'].value) { ui['plan-status'].textContent = '请先选择发布日期'; ui['plan-status'].className = 'panel-note error'; return; }
-  run(async () => { ui['plan-status'].textContent = '正在使用当前飞书筛选结果拉取…'; currentPlan = await window.publisher.createPlan(ui['plan-date'].value, 'current', ui['plan-scheme'].value, activeSchedulePolicyId); ui['batch-confirm'].checked = false; }, '计划已经生成，请逐行人工检查。', ui['plan-status'], 'pull');
+  run(async () => { ui['plan-status'].textContent = '正在使用当前飞书筛选结果拉取…'; currentPlan = await window.publisher.createPlan(ui['plan-date'].value, 'current', ui['plan-scheme'].value, activeSchedulePolicyId); ui['batch-confirm'].checked = false; }, '计划已经生成，请逐行人工检查。', ui['plan-status'], 'pull', '拉取失败，请查看左下角完整错误。');
 }
 ui['create-plan-current-filter'].addEventListener('click', createPlan);
 document.querySelector('.date-control').addEventListener('click', (event) => {

@@ -29,7 +29,7 @@ const { _electron: electron } = require('playwright');
     };
     throw new Error(`账号模块没有渲染：${JSON.stringify(diagnostic)}`);
   }
-  assert.equal(await page.locator('[data-page]').count(), 4);
+  assert.equal(await page.locator('[data-page]').count(), 5);
   await page.locator('[data-page="main"]').click();
   assert.equal(await page.locator('[data-page-panel="main"].active').count(), 1);
   assert.equal(await page.locator('[data-page-panel="main"] #accounts-test').count(), 0);
@@ -38,14 +38,14 @@ const { _electron: electron } = require('playwright');
   assert.ok(await page.locator('#accounts-main .runtime-row').count() >= 1);
   assert.equal(await page.locator('#create-plan').count(), 0);
   assert.equal(await page.locator('#create-plan-current-filter').count(), 1);
-  for (const selector of ['#open-feishu', '#detect-feishu', '#clear-cache', '#copy-id-table']) {
+  for (const selector of ['#open-feishu', '#clear-cache', '#copy-id-table']) {
     assert.equal(await page.locator(selector).isVisible(), true, `${selector} 应在指挥台可见`);
   }
   const dateInput = page.locator('#plan-date');
   assert.equal(await dateInput.isVisible(), true, '发布日期必须完整可见');
   assert.equal(await dateInput.isEnabled(), true, '发布日期必须可以操作');
-  const dateBox = await dateInput.boundingBox();
-  assert.ok(dateBox && dateBox.width >= 140 && dateBox.height >= 38, `发布日期命中区域异常：${JSON.stringify(dateBox)}`);
+  const dateBox = await page.locator('.date-control').boundingBox();
+  assert.ok(dateBox && dateBox.width >= 148 && dateBox.height >= 38, `发布日期命中区域异常：${JSON.stringify(dateBox)}`);
   const dateHitTarget = await page.evaluate(() => {
     const input = document.querySelector('#plan-date');
     const box = input.getBoundingClientRect();
@@ -61,7 +61,7 @@ const { _electron: electron } = require('playwright');
   }));
   assert.ok(clearCacheText.scrollWidth <= clearCacheText.clientWidth && clearCacheText.whiteSpace === 'nowrap', '清空下载缓存文字不应被裁切或异常折行');
   const refreshText = await page.locator('#create-plan-current-filter').evaluate((element) => ({ scrollWidth: element.scrollWidth, clientWidth: element.clientWidth }));
-  assert.ok(refreshText.scrollWidth <= refreshText.clientWidth, '重新拉取当前筛选文字不应被裁切');
+  assert.ok(refreshText.scrollWidth <= refreshText.clientWidth, '拉取排期文字不应被裁切');
   for (const icon of await page.locator('.nav-icon svg').all()) {
     const box = await icon.boundingBox();
     assert.ok(box && box.width >= 16 && box.height >= 16, '侧栏 SVG 图标应正常显示');
@@ -71,6 +71,8 @@ const { _electron: electron } = require('playwright');
     const box = await row.boundingBox();
     assert.ok(runtimePanel && box && box.x + box.width <= runtimePanel.x + runtimePanel.width, `运行环境操作不应溢出卡片：${JSON.stringify({ runtimePanel, box })}`);
   }
+  const runtimeHeights = await page.locator('.runtime-panel .runtime-row').evaluateAll((rows) => rows.map((row) => Math.round(row.getBoundingClientRect().height)));
+  assert.ok(runtimeHeights.length >= 2 && new Set(runtimeHeights).size === 1, `运行环境各行应等高：${runtimeHeights.join(', ')}`);
   for (const heading of await page.locator('.workbench-page h1, .workbench-page h2').all()) {
     const clipped = await heading.evaluate((element) => element.scrollWidth > element.clientWidth);
     assert.equal(clipped, false, `标题不应换行或吞字：${await heading.innerText()}`);
@@ -78,7 +80,8 @@ const { _electron: electron } = require('playwright');
   const footerBox = await page.locator('.workbench-footer').boundingBox();
   const viewportHeight = await page.evaluate(() => window.innerHeight);
   assert.ok(footerBox && footerBox.y + footerBox.height <= viewportHeight + 1, `复核发布栏必须固定在可视区域底部：${JSON.stringify({ footerBox, viewportHeight })}`);
-  assert.equal(await page.locator('#detect-feishu').isDisabled(), true, '飞书 Chrome 未打开时检测登录应保持禁用');
+  assert.equal(await page.locator('#detect-feishu').count(), 0, '4.4.2 不再显示飞书登录检测');
+  assert.equal(await page.locator('#create-plan-current-filter').isEnabled(), true, '拉取排期不再受飞书检测状态锁定');
   assert.equal(await page.locator('#copy-id-table').isDisabled(), true, '没有发布计划时复制 ID 表格应保持禁用');
   assert.equal(await page.locator('#metric-download-value').isVisible(), true);
   assert.equal(await page.locator('#metric-publish-value').isVisible(), true);
@@ -171,7 +174,7 @@ const { _electron: electron } = require('playwright');
   }
   await page.locator('[data-page="test"]').click();
   assert.equal(await page.getByRole('heading', { name: '测试工具' }).isVisible(), true);
-  assert.match(await page.locator('#accounts-test').innerText(), /测试小号/);
+  assert.match(await page.locator('#accounts-test').innerText(), /抖音测试账号/);
   assert.equal(await page.locator('#test-platform option').count(), 2);
   assert.equal(await page.locator('#test-resolve-id').isVisible(), true);
   await page.locator('#test-platform').selectOption('wechat-channels');
@@ -181,6 +184,9 @@ const { _electron: electron } = require('playwright');
   if (process.env.SMOKE_SCREENSHOT_DIR) {
     await page.screenshot({ path: path.join(process.env.SMOKE_SCREENSHOT_DIR, 'test-tools.png'), fullPage: true });
   }
+  await page.locator('[data-page="guide"]').click();
+  assert.match(await page.locator('[data-page-panel="guide"]').innerText(), /筛选结果仅我可见/);
+  assert.match(await page.locator('[data-page-panel="guide"]').innerText(), /不要最小化、覆盖或操作软件开启的/);
   await page.locator('[data-page="settings"]').click();
   assert.equal(await page.locator('#guard-seconds').isVisible(), true);
   assert.equal(await page.locator('#settings-accounts .account-settings-card').count(), 4);

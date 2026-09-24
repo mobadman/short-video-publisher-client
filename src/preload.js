@@ -20,7 +20,6 @@ contextBridge.exposeInMainWorld('publisher', {
   saveSettings: (input) => ipcRenderer.invoke('settings:save', input),
   getFeishuBrowserStatus: () => ipcRenderer.invoke('feishu-browser:status'),
   openFeishuBrowser: () => ipcRenderer.invoke('feishu-browser:open'),
-  detectFeishuLogin: () => ipcRenderer.invoke('feishu-browser:detect'),
   closeFeishuBrowser: () => ipcRenderer.invoke('feishu-browser:close'),
   getLibraryPaths: () => ipcRenderer.invoke('library:paths'),
   listLibraryProducts: (workspaceId, schemeId = 'default') => ipcRenderer.invoke('library:list-products', workspaceId, schemeId),

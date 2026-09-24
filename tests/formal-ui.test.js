@@ -10,10 +10,10 @@ const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8
 const accountStore = fs.readFileSync(path.join(__dirname, '..', 'src', 'account-store.js'), 'utf8');
 const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
 
-test('4.3.0流程仪表盘版本名称和商城链接入口完整显示', () => {
+test('4.4.2流程仪表盘版本名称和商城链接入口完整显示', () => {
   assert.match(html, /发布工作台/);
   assert.match(html, /短视频批量发布助手/);
-  assert.match(html, /4\.3\.0 · 本地工作台/);
+  assert.match(html, /4\.4\.2 · 本地工作台/);
   assert.match(html, /id="workspace-select"/);
   assert.match(html, /id="commerce-panel"/);
   assert.match(html, /商品短标题库/);
@@ -22,14 +22,14 @@ test('4.3.0流程仪表盘版本名称和商城链接入口完整显示', () => 
   assert.match(html, /id="edit-confirm-short-title"/);
   assert.match(html, /id="edit-save-short-title"/);
   assert.doesNotMatch(html, /id="prepare-commerce"/);
-  assert.doesNotMatch(html, /data-page="guide"/);
+  assert.match(html, /data-page="guide"/);
   assert.match(html, /id="test-platform"/);
 });
 
 test('计划支持勾选、编辑、续发和ID记录', () => {
   assert.match(html, /id="select-all"/);
   assert.match(html, /id="edit-plan-modal"/);
-  assert.match(html, /发布已勾选的未完成视频/);
+  assert.match(html, /id="execute-plan" class="danger">发布<\/button>/);
   assert.match(html, /id="sync-ids"/);
   assert.match(html, /id="edit-plan-category"/);
   assert.match(html, /id="edit-plan-model"/);
@@ -47,16 +47,19 @@ test('计划支持勾选、编辑、续发和ID记录', () => {
   assert.match(html, /id="create-plan-current-filter"/);
 });
 
-test('原版关键操作入口在指挥台完整保留', () => {
+test('关键操作入口完整保留且飞书检测不再阻断拉取', () => {
   for (const id of [
-    'save-sheet', 'open-feishu', 'detect-feishu', 'close-feishu',
+    'save-sheet', 'open-feishu', 'close-feishu',
     'clear-cache', 'select-all', 'select-none', 'sync-ids', 'open-published-videos',
     'export-ids', 'copy-id-table', 'open-id-records', 'execute-plan'
   ]) assert.match(html, new RegExp(`id="${id}"`));
+  assert.doesNotMatch(html, /id="detect-feishu"/);
+  assert.doesNotMatch(app, /!feishuStatus\.loggedIn/);
+  assert.match(html, />拉取排期<\/button>/);
 });
 
-test('4.3.0沿用3.1.2的应用身份和本地Chrome Profile目录', () => {
-  assert.equal(packageJson.version, '4.3.0');
+test('4.4.2沿用3.1.2的应用身份和本地Chrome Profile目录', () => {
+  assert.equal(packageJson.version, '4.4.2');
   assert.equal(packageJson.build.appId, 'cn.boguan.shortvideo.publisher');
   assert.match(accountStore, /path\.join\(dataRoot, 'chrome-profiles'\)/);
   assert.match(main, /app\.getPath\('userData'\), '工作区', workspace\.id, 'browser-profiles', 'feishu-fixed-145'/);
@@ -90,6 +93,19 @@ test('4.3.0包含可复用排期算法小窗且生成计划锁定方案', () => 
   assert.match(app, /focusRanges/);
   assert.match(app, /avoidRanges/);
   assert.match(main, /schedulePolicyStore\.get/);
+});
+
+test('4.4.2包含使用指引和关键操作警告', () => {
+  assert.match(html, /<h1>使用指引<\/h1>/);
+  assert.match(html, /筛选结果仅我可见/);
+  assert.match(html, /不要最小化、覆盖或操作软件开启的/);
+  assert.match(html, /先看左下角完整报错/);
+  assert.match(app, /拉取失败，请查看左下角完整错误/);
+  assert.doesNotMatch(html, /id="settings-status"/);
+  assert.match(styles, /\.runtime-row\s*\{[^}]*height:\s*50px/);
+  assert.match(styles, /\.product-list\s*\{[^}]*max-height:\s*none/);
+  assert.match(html, /<span class="live-dot"><\/span>当前状态/);
+  assert.doesNotMatch(html, /<span class="live-dot"><\/span>本地服务/);
 });
 
 test('4.1.0包含素材库表单与商城首帧封面入口', () => {

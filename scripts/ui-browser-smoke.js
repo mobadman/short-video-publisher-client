@@ -9,7 +9,7 @@ const { WechatChannelsBrowserManager } = require('../src/wechat-channels-browser
 (async () => {
   const root = path.join(__dirname, '..');
   const executablePath = path.join(root, '.playwright-browsers', 'chromium-1208', 'chrome-win64', 'chrome.exe');
-  const output = path.join(root, '.ui-4.3.0');
+  const output = path.join(root, '.ui-4.4.2');
   fs.mkdirSync(output, { recursive: true });
   const browser = await chromium.launch({ executablePath, headless: true });
   const page = await browser.newPage({ viewport: { width: 1080, height: 720 } });
@@ -32,7 +32,8 @@ const { WechatChannelsBrowserManager } = require('../src/wechat-channels-browser
       selectSchedulePolicy: async () => ({ activeId: 'default', items: [{ id: 'default', name: '默认排期', mode: 'default', builtIn: true }] }),
       listLibraryProducts: async (workspaceId) => ({ workspace: workspaces.find((item) => item.id === workspaceId), items: [
         { model: 'G23微蒸烤', copyCount: 5, tagGroupCount: 3, coverCount: workspaceId === 'douyin-commerce' ? 0 : 4, shortTitleCount: 2 },
-        { model: '秋日通勤风衣', copyCount: 2, tagGroupCount: 1, coverCount: 3, shortTitleCount: 0 }
+        { model: '秋日通勤风衣', copyCount: 2, tagGroupCount: 1, coverCount: 3, shortTitleCount: 0 },
+        ...Array.from({ length: 12 }, (_, index) => ({ model: `界面高度检查产品${index + 1}`, copyCount: 30, tagGroupCount: 1, coverCount: 2, shortTitleCount: 0 }))
       ] }),
       onAutomationTakeover: () => {}, onPlanItemState: () => {}
     };
@@ -40,11 +41,26 @@ const { WechatChannelsBrowserManager } = require('../src/wechat-channels-browser
   await page.goto(pathToFileURL(path.join(root, 'src', 'renderer', 'index.html')).href);
   await page.waitForTimeout(500);
   assert.equal(errors.length, 0, errors.join('\n'));
-  assert.equal(await page.locator('[data-page]').count(), 4);
+  assert.equal(await page.locator('[data-page]').count(), 5);
+  await page.locator('[data-page="guide"]').click();
+  assert.match(await page.locator('[data-page-panel="guide"]').innerText(), /不要最小化、覆盖或操作软件开启的/);
+  assert.match(await page.locator('[data-page-panel="guide"]').innerText(), /筛选结果仅我可见/);
+  await page.screenshot({ path: path.join(output, 'usage-guide.png'), fullPage: true });
   await page.locator('[data-page="library"]').click();
   await page.locator('#library-model').fill('G23/微蒸烤');
   assert.match(await page.locator('#library-safe-name').innerText(), /G23_微蒸烤/);
   assert.equal(await page.locator('#library-workspace-targets input').count(), 3);
+  assert.equal(await page.locator('#library-product-list .library-product-card').count(), 14);
+  const libraryPanels = await page.locator('.library-form-panel, .library-catalog-panel').evaluateAll((panels) => panels.map((panel) => Math.round(panel.getBoundingClientRect().height)));
+  assert.equal(libraryPanels[0], libraryPanels[1], `素材录入与已有产品卡片应等高：${libraryPanels.join(', ')}`);
+  const catalogFill = await page.locator('.library-catalog-panel').evaluate((panel) => {
+    const list = panel.querySelector('.product-list');
+    const panelBox = panel.getBoundingClientRect();
+    const listBox = list.getBoundingClientRect();
+    return { bottomGap: Math.round(panelBox.bottom - listBox.bottom), scrollable: list.scrollHeight > list.clientHeight };
+  });
+  assert.ok(catalogFill.bottomGap <= 20, `已有产品列表应延伸到卡片底部：${JSON.stringify(catalogFill)}`);
+  assert.equal(catalogFill.scrollable, true, '产品较多时已有产品列表应在完整可用高度内滚动');
   await page.screenshot({ path: path.join(output, 'material-library.png'), fullPage: true });
   await page.locator('[data-page="main"]').click();
   await page.locator('#schedule-policy-trigger').click();

@@ -68,3 +68,17 @@ test('自动筛选直接定位发布时间表头右侧的筛选控件', () => {
   assert.match(source, /filterControl\.click/);
   assert.doesNotMatch(source, /Alt\+ArrowDown/);
 });
+
+test('打开飞书Chrome后无需人工检测登录即可开始拉取', () => {
+  const manager = new FeishuBrowserManager('unused');
+  manager.context = {};
+  manager.lastDetection = null;
+  assert.doesNotThrow(() => manager.assertReady());
+  manager.context = null;
+  assert.throws(() => manager.assertReady(), /打开飞书 Chrome/);
+  const source = require('node:fs').readFileSync(
+    require('node:path').join(__dirname, '..', 'src', 'feishu-browser-manager.js'), 'utf8'
+  );
+  assert.doesNotMatch(source, /尚未确认飞书登录状态|检测飞书登录/);
+  assert.match(source, /飞书登录已经失效，请重新登录后再次拉取排期/);
+});

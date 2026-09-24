@@ -194,8 +194,7 @@ class FeishuBrowserManager {
   }
 
   assertReady() {
-    if (!this.context) throw new Error('飞书 Chrome 未打开，请先点击“打开飞书登录”');
-    if (this.lastDetection?.state !== 'logged-in') throw new Error('尚未确认飞书登录状态，请先点击“检测飞书登录”');
+    if (!this.context) throw new Error('飞书 Chrome 未打开，请先点击“打开飞书 Chrome”');
   }
 
   async copySheet(sheetUrl, requiredHeaders, options = {}) {
@@ -208,7 +207,7 @@ class FeishuBrowserManager {
     const bodyText = await page.locator('body').innerText().catch(() => '');
     if (LOGIN_HOST_PATTERN.test(page.url()) || LOGIN_TEXT_PATTERN.test(bodyText.slice(0, 3000))) {
       this.lastDetection = { state: 'login-required', message: '飞书登录已经失效，请重新登录', checkedAt: new Date().toISOString() };
-      throw new Error('飞书登录已经失效，请重新登录并再次检测');
+      throw new Error('飞书登录已经失效，请重新登录后再次拉取排期');
     }
 
     if (options.filterMode === 'auto') {

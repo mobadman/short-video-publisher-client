@@ -250,7 +250,6 @@ function registerIpc() {
   ipcMain.handle('settings:save', (_event, input) => configStore.save(input || {}));
   ipcMain.handle('feishu-browser:status', () => feishuBrowserManager.status());
   ipcMain.handle('feishu-browser:open', () => feishuBrowserManager.open(workspaceStore.active().sheetUrl));
-  ipcMain.handle('feishu-browser:detect', () => feishuBrowserManager.detect(workspaceStore.active().sheetUrl));
   ipcMain.handle('feishu-browser:close', () => feishuBrowserManager.close());
   ipcMain.handle('library:paths', () => libraryStore.paths());
   ipcMain.handle('library:list-products', (_event, workspaceId, schemeId = 'default') => {
